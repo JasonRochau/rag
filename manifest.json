@@ -1,0 +1,91 @@
+{
+  "version": "1.0",
+  "documents": {
+    "cf4b8c6e6e8c": {
+      "title": "CCNA 200-301 — Domain 1.0: Network Fundamentals (20%)",
+      "source_path": "networking/network_fundamentals.md",
+      "chunk_count": 15
+    },
+    "d96621d65802": {
+      "title": "CCNA 200-301 — Domain 2.0: Network Access (20%)",
+      "source_path": "networking/network_access.md",
+      "chunk_count": 11
+    },
+    "7f2cbd2fd0e9": {
+      "title": "CCNA 200-301 — Domain 5.0: Security Fundamentals (15%)",
+      "source_path": "networking/security_fundamentals.md",
+      "chunk_count": 65
+    },
+    "57813642fc23": {
+      "title": "IP Services (10% Exam Coverage)",
+      "source_path": "networking/ip_services.md",
+      "chunk_count": 13
+    },
+    "28860a75c84b": {
+      "title": "IP Connectivity (25% Exam Coverage)",
+      "source_path": "networking/ip_connectivity.md",
+      "chunk_count": 9
+    },
+    "86e06f99fcb0": {
+      "title": "Table of Contents",
+      "source_path": "networking/automation_and_programmability.md",
+      "chunk_count": 42
+    },
+    "0f24feab82d2": {
+      "title": "Thrive System Administrator — Behavioral Interview Prep",
+      "source_path": "azure/behavioral_prep.md",
+      "chunk_count": 2
+    },
+    "e1dd663eeef3": {
+      "title": "Thrive System Administrator — Technical Interview Prep",
+      "source_path": "azure/technical_prep.md",
+      "chunk_count": 4
+    },
+    "0d27430fb007": {
+      "title": "Azure Cloud Shell: A Comprehensive Guide",
+      "source_path": "azure/prerequisites/Azure_Cloud_Shell_A_Comprehensive_Guide.md",
+      "chunk_count": 5
+    },
+    "da595b43326b": {
+      "title": "Untitled",
+      "source_path": "azure/prerequisites/deploy_azure_infrastructure_byusing_JSON_ARM_templates.md",
+      "chunk_count": 1
+    },
+    "2fe902f4f223": {
+      "title": "Untitled",
+      "source_path": "azure/prerequisites/introduction_to_azure_cloud_shell.md",
+      "chunk_count": 1
+    },
+    "0e0671a4c98d": {
+      "title": "Create, Configure, and Manage Identities",
+      "source_path": "azure/identities_and_governance/create_configure_and_manage_identities.md",
+      "chunk_count": 8
+    },
+    "cd63f3ba6d88": {
+      "title": "Azure Role-Based Access Control (Azure RBAC)",
+      "source_path": "azure/identities_and_governance/secure_your_azure_resources_with_azure_role_based_access_control_azure_rbac.md",
+      "chunk_count": 19
+    },
+    "2ef0018488e4": {
+      "title": "Azure Core Architectural Components",
+      "source_path": "azure/identities_and_governance/describe_the_core_architectural_components_of_azure.md",
+      "chunk_count": 18
+    },
+    "83df2a1f1d88": {
+      "title": "Microsoft Entra Self-Service Password Reset (SSPR)",
+      "source_path": "azure/identities_and_governance/allow_users_to_reset_their_password_with_microsoft_entra_self_service_password_reset.md",
+      "chunk_count": 21
+    },
+    "99cc028616a2": {
+      "title": "Microsoft Entra ID Overview",
+      "source_path": "azure/identities_and_governance/understand_microsoft_entra_id.md",
+      "chunk_count": 6
+    },
+    "8ead81e21531": {
+      "title": "Azure Policy and Governance",
+      "source_path": "azure/identities_and_governance/azure_policy_initiatives.md",
+      "chunk_count": 31
+    }
+  },
+  "updated_at": "2026-07-15 20:36:14"
+}

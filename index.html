@@ -1,0 +1,3139 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Knowledge Assistant</title>
+  <link rel="stylesheet" href="app.css">
+  <style>
+    /* ---------- Knowledge Base mode: document list + inline viewer, plus the
+       document-management pieces merged in from the old converter page
+       (dry-run convert cards, validation diagnostics, title editing).
+       Page-specific, so they live here rather than in the shared app.css. ---------- */
+    .doc-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin: 12px 0 0;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      padding: 2px;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .doc-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: transparent;
+      border: none;
+      border-radius: 4px;
+      padding: 5px 7px;
+      font-size: var(--text-sm);
+      cursor: pointer;
+    }
+
+    .doc-row:hover {
+      background: var(--surface-hover);
+    }
+
+    .doc-row .dname {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text-primary);
+    }
+
+    .doc-row .dmeta {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .doc-row.selected,
+    .doc-row.selected:hover {
+      background: var(--primary-soft);
+    }
+
+    /* title editing inside a doc row: the name + edit link (+ override
+       badge / restore) swap in place for input + save/cancel */
+    .doc-row .dname-cell {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow: hidden;
+    }
+
+    .doc-row .dname-cell .dname {
+      flex: 0 1 auto;
+    }
+
+    .doc-row .dedit {
+      flex-shrink: 0;
+      font-size: var(--text-xs);
+      white-space: nowrap;
+    }
+
+    .doc-row .dtitle-input {
+      flex: 1;
+      min-width: 120px;
+      height: 26px;
+      padding: 0 8px;
+      font-size: var(--text-sm);
+    }
+
+    .doc-row .dact {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      padding: 3px 9px;
+      font-size: var(--text-xs);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .doc-row .dact:hover:not(:disabled) {
+      background: var(--surface-hover);
+      color: var(--text-primary);
+    }
+
+    /* per-document diagnostics expansion, directly beneath its row */
+    .doc-details {
+      background: var(--bg-panel);
+      border-radius: 4px;
+      padding: 2px 12px 8px;
+    }
+
+    .doc-splitter {
+      height: 7px;
+      margin: 8px 0 12px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      cursor: row-resize;
+      touch-action: none;
+    }
+
+    .doc-splitter:active {
+      border-color: var(--primary);
+    }
+
+    .doc-viewer {
+      display: flex;
+      flex-direction: column;
+      height: min(60vh, 600px);
+      margin-top: 10px;
+    }
+
+    .doc-viewer[hidden] {
+      display: none;
+    }
+
+    .dv-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .dv-name {
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--text-primary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .dv-body {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      background: var(--bg-sunken);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+    }
+
+    .dv-body iframe {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    .dv-md {
+      margin: 0;
+      padding: 10px 12px;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--text-primary);
+      white-space: pre;
+    }
+
+    .dv-status {
+      padding: 10px 12px;
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+    }
+
+    .dv-status.err {
+      color: var(--danger-text);
+      font-weight: 600;
+    }
+
+    /* ---------- convert-to-markdown (dry-run) result cards ---------- */
+    .convert-log {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 12px;
+      line-height: 1.7;
+    }
+
+    .convert-log .bad {
+      color: var(--danger-text);
+    }
+
+    .result {
+      padding: 20px 22px;
+      margin-top: 16px;
+    }
+
+    .result .rname {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 2px;
+      color: var(--text-primary);
+    }
+
+    .result .rmeta {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+
+    .title-row .rname {
+      margin-bottom: 0;
+    }
+
+    .title-edit {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      width: 100%;
+      margin: 2px 0;
+    }
+
+    .title-edit input[type=text] {
+      flex: 1;
+      min-width: 220px;
+      border-color: var(--primary);
+      padding: 6px 9px;
+      font-family: var(--font-sans);
+      font-size: 13.5px;
+    }
+
+    .stat-row {
+      display: flex;
+      gap: 30px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+      padding-top: 4px;
+    }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .stat .n {
+      font-size: 21px;
+      font-weight: 700;
+      line-height: 1.1;
+      color: var(--text-primary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat .lbl {
+      font-family: var(--font-sans);
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    .stat.warn .n {
+      color: var(--warning-text);
+    }
+
+    .stat.err .n {
+      color: var(--danger-text);
+    }
+
+    .stat.ok .n {
+      color: var(--success-text);
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    /* ---------- View Details panel (convert cards + KB doc rows) ---------- */
+    .details-panel {
+      margin-top: 16px;
+      border-top: 1px solid var(--border-default);
+      padding-top: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .detail-section h3 {
+      font-family: var(--font-sans);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--text-muted);
+      margin: 0 0 10px;
+      font-weight: 600;
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      gap: 2px 24px;
+    }
+
+    .detail-kv {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 13px;
+      padding: 5px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .detail-kv .k {
+      color: var(--text-muted);
+    }
+
+    .detail-kv .v {
+      text-align: right;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .status-line {
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+
+    .finding-group {
+      margin-bottom: 12px;
+    }
+
+    .finding-group h4 {
+      font-family: var(--font-sans);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin: 0 0 8px;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    .finding-group h4.ERROR {
+      color: var(--danger-text);
+    }
+
+    .finding-group h4.WARNING {
+      color: var(--warning-text);
+    }
+
+    .finding-group h4.FIXED,
+    .finding-group h4.INFO {
+      color: var(--text-muted);
+    }
+
+    .finding {
+      font-family: var(--font-sans);
+      font-size: 13px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .finding .fcode {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 11.5px;
+      margin-right: 8px;
+      color: var(--text-secondary);
+    }
+
+    .finding.ERROR .fcode {
+      color: var(--danger-text);
+    }
+
+    .finding.WARNING .fcode {
+      color: var(--warning-text);
+    }
+
+    .finding.FIXED .fcode,
+    .finding.INFO .fcode {
+      color: var(--text-muted);
+    }
+
+    .finding .floc {
+      color: var(--text-muted);
+      margin-left: 8px;
+      font-size: 12px;
+    }
+
+    .finding .fsuggest {
+      color: var(--text-muted);
+      margin-top: 3px;
+      font-size: 12.5px;
+    }
+
+    .muted-note {
+      font-family: var(--font-sans);
+      font-size: 12.5px;
+      color: var(--text-muted);
+      padding: 4px 0;
+    }
+
+    .detail-loading {
+      font-family: var(--font-sans);
+      font-size: 12.5px;
+      color: var(--text-muted);
+      padding: 10px 0;
+    }
+
+    .detail-err {
+      font-family: var(--font-sans);
+      font-size: 12.5px;
+      color: var(--danger-text);
+      padding: 10px 0;
+    }
+
+    /* stt endpoint is internal plumbing, not a user-facing control */
+    #sttField {
+      display: none;
+    }
+
+    /* ---------- webCrawler mode: reclaim the Sources column.
+       The sources panel is chat-only; in crawler mode it is forced closed
+       (updateSourcesUI also never opens it outside chat mode). ---------- */
+    .shell.crawler-full .sources-panel {
+      display: none;
+    }
+
+    @media (min-width: 1101px) {
+      .shell.crawler-full {
+        grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="shell" id="shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <span class="brand-mark" aria-hidden="true">K</span>
+        <span class="brand-title">Knowledge Assistant</span>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="Primary">
+        <button class="nav-item is-active" id="navChat" data-mode="chat" type="button">New Chat</button>
+        <button class="nav-item" id="navJob" data-mode="job" type="button">Job</button>
+        <button class="nav-item" id="navKb" data-mode="kb" type="button">Knowledge Base</button>
+        <button class="nav-item" id="navSettings" data-mode="settings" type="button">Settings</button>
+      </nav>
+
+      <!-- Tools group: hidden entirely unless the master "Enable Agentic
+           Capabilities" toggle in Settings is ON (see applyAgenticState). -->
+      <div class="sidebar-tools" id="sidebarTools" hidden>
+        <button class="micro-label clickable" id="toolsToggle" type="button">
+          <span>Tools</span><span id="toolsChevron">▾</span>
+        </button>
+        <div class="tool-links" id="toolLinks">
+          <div class="tool-link-row">
+            <button class="nav-item" id="navCrawlerTool" data-mode="crawler" type="button">webCrawler</button>
+            <label class="toggle tool-switch" title="Enable webCrawler"><input type="checkbox" id="crawlerEnableToggle"
+                aria-label="Enable webCrawler"></label>
+          </div>
+          <div class="tool-link-row">
+            <button class="nav-item" id="navLocalAgentTool" data-mode="localagent" type="button">localAgent</button>
+            <label class="toggle tool-switch" title="Enable localAgent"><input type="checkbox"
+                id="localAgentEnableToggle" aria-label="Enable localAgent"></label>
+          </div>
+        </div>
+      </div>
+
+      <div class="model-select-wrap">
+        <span class="micro-label">Model</span>
+        <select id="modelSelect" class="model-select">
+          <option>loading…</option>
+        </select>
+      </div>
+
+      <div class="sidebar-threads" id="sidebarThreads">
+        <button class="micro-label clickable" id="historyToggle" type="button">
+          <span>Recent</span><span id="historyChevron">▾</span>
+        </button>
+        <div class="thread-list" id="threadList"></div>
+      </div>
+
+      <div class="sidebar-footer">
+        <span class="avatar-dot" aria-hidden="true">J</span>
+        <span id="userEmailLabel"></span>
+      </div>
+
+      <!-- hidden runtime plumbing: not user-facing controls, kept in the DOM
+           so the JS below can read/write them directly. -->
+      <div style="display:none">
+        <input class="host" id="orchInput" value="http://localhost:11436" spellcheck="false">
+        <label class="field" id="sttField">stt<input class="host" id="whisperInput" value="http://localhost:11435"
+            spellcheck="false"></label>
+      </div>
+    </aside>
+
+    <main class="workspace" id="workspace">
+
+      <!-- ================= CHAT MODE ================= -->
+      <div class="workspace-mode is-active" id="modeChat" data-mode-panel="chat">
+        <div class="workspace-topbar">
+          <button class="ghost sidebar-menu-btn" data-sidebar-toggle type="button" title="Menu">☰</button>
+          <input class="thread-title-input" id="threadTitleInput" placeholder="New chat" spellcheck="false">
+          <div class="topbar-actions">
+            <div class="status"><span class="dot" id="dot"></span><span id="statusText">connecting…</span></div>
+            <button class="ghost sources-toggle-btn" id="sourcesToggleBtn" type="button">Sources <span
+                class="sources-count-badge" id="sourcesToggleCount">0</span></button>
+          </div>
+        </div>
+
+        <div class="feed" id="main">
+          <div class="feed-inner" id="wrap">
+            <div class="banner" id="banner"></div>
+            <div class="empty" id="empty"><b>Ready.</b><br>Pick a model. Everything runs on this machine.</div>
+          </div>
+        </div>
+
+        <footer>
+          <div class="composer">
+            <div class="monitor">
+              <span class="zone smart" id="zone">SMART</span>
+              <span id="tokText">~0 tok</span>
+              <div class="mon-bar">
+                <div class="mon-fill" id="monFill"></div>
+              </div>
+              <span id="pctText">0%</span>
+              <span class="mon-action" id="monAction"></span>
+              <button class="refresh" id="refreshBtn" type="button" title="Archive session and start fresh">new
+                session</button>
+            </div>
+            <div class="inputrow">
+              <button class="mic" id="micBtn" type="button" title="Voice input">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" y1="19" x2="12" y2="23" />
+                </svg>
+              </button>
+              <textarea id="input" rows="1" placeholder="type or speak"></textarea>
+              <button class="send" id="sendBtn" type="button" disabled>Send</button>
+            </div>
+            <div class="recbar" id="recbar">
+              <span class="recdot"></span><span id="recTime">0:00</span>
+              <div class="level">
+                <div class="level-fill" id="levelFill"></div>
+              </div>
+              <span class="rechint" id="recHint">listening…</span>
+            </div>
+            <div class="belowrow">
+              <span class="hint">Enter to send · Shift+Enter for newline · ESC to clear</span>
+              <div class="below-right">
+                <label class="toggle"><input type="checkbox" id="autostop" checked> stop on pause</label>
+                <button class="ghost" id="clearBtn" type="button">Clear</button>
+              </div>
+            </div>
+          </div>
+        </footer>
+      </div>
+
+      <!-- ================= JOB MODE ================= -->
+      <div class="workspace-mode" id="modeJob" data-mode-panel="job">
+        <div class="workspace-topbar">
+          <button class="ghost sidebar-menu-btn" data-sidebar-toggle type="button" title="Menu">☰</button>
+          <span style="font-weight:600">Job</span>
+          <div class="topbar-actions">
+            <span class="pill neutral" id="jobStatusPill" hidden></span>
+            <button class="ghost hdr-btn" id="jobCancelBtn" type="button" hidden>cancel</button>
+            <button class="ghost hdr-btn" id="jobBackBtn" type="button" hidden>all jobs</button>
+          </div>
+        </div>
+        <div
+          style="flex:1;min-height:0;overflow-y:auto;padding:18px 22px 32px;display:flex;flex-direction:column;gap:28px;max-width:var(--content-width);">
+
+          <!-- recent jobs -->
+          <section id="jobListSection">
+            <label class="plabel">Jobs</label>
+            <div id="jobList"></div>
+          </section>
+
+          <!-- the four-section job form -->
+          <div id="jobForm" style="display:flex;flex-direction:column;gap:28px">
+            <section>
+              <label class="plabel" for="jobDesc"
+                style="font-size:13px;text-transform:none;letter-spacing:0;color:var(--text-primary);margin-bottom:8px">1
+                · Description</label>
+              <textarea id="jobDesc" rows="3"
+                placeholder="Build a website using html, css, typescript, sqlite3"></textarea>
+              <div class="orchnote" style="margin-top:6px">Exactly what to build. The job runs with the chat model,
+                using knowledge base retrieval plus the model's own knowledge.</div>
+            </section>
+
+            <section>
+              <label class="plabel" for="jobChecklist"
+                style="font-size:13px;text-transform:none;letter-spacing:0;color:var(--text-primary);margin-bottom:8px">2
+                · Build checklist</label>
+              <textarea id="jobChecklist" rows="10"
+                placeholder="## Stage 1: Setup&#10;- Create index.html :: test -f index.html&#10;- Write styles in style.css&#10;&#10;## Stage 2: Logic&#10;- Add app.js :: node --check app.js&#10;- All tests pass :: npm test"></textarea>
+              <div class="orchnote" style="margin-top:6px">Stages as <code>## title</code> lines, sub-stages as
+                <code>- item</code> lines, an optional check command after <code>::</code>. This is the validation
+                list: an item is checked off only after its check passes, a stage is complete only when all its
+                sub-stages are checked off. The model cannot add, remove, reorder, or reword items — it can only
+                check them off, through the validation gate.</div>
+            </section>
+
+            <section>
+              <label class="plabel" for="jobSysPrompt"
+                style="font-size:13px;text-transform:none;letter-spacing:0;color:var(--text-primary);margin-bottom:8px">3
+                · System prompt</label>
+              <textarea id="jobSysPrompt" rows="4"
+                placeholder="Job-specific instructions, e.g. coding style, frameworks to prefer, things to avoid"></textarea>
+              <div class="orchnote" style="margin-top:6px">Sent as the system prompt on every model call for this
+                job, ahead of the description and checklist, so the agent follows it throughout the build.</div>
+            </section>
+
+            <section>
+              <label class="plabel"
+                style="font-size:13px;text-transform:none;letter-spacing:0;color:var(--text-primary);margin-bottom:8px">4
+                · Validation (completion)</label>
+              <div class="orchnote">When the agent reports the build done, the system verifies everything
+                independently — it does not take the agent's word. Every check command and every test in the job's
+                output directory is re-run. Each stage and sub-stage shows pass/fail with the command run and its
+                output, and any item the agent marked ready that fails verification is flagged. The job is marked
+                complete only when every item passes and all tests come back clean; otherwise it is marked failed,
+                with the failing items listed.</div>
+              <div class="prow">
+                <span class="orchnote" id="jobFormNote"></span>
+                <button class="act" id="jobSubmitBtn" type="button">Run job</button>
+              </div>
+            </section>
+          </div>
+
+          <!-- live progress / result view -->
+          <div id="jobView" hidden style="display:flex;flex-direction:column;gap:28px">
+            <section>
+              <div class="job-title" id="jobViewTitle"></div>
+              <div class="orchnote" id="jobViewMeta" style="margin-top:4px"></div>
+              <div class="job-current" id="jobCurrent" hidden></div>
+              <div class="mon-bar job-bar" id="jobBar" hidden>
+                <div class="mon-fill" id="jobBarFill"></div>
+              </div>
+              <div class="orchnote" id="jobProgressText" style="margin-top:6px"></div>
+            </section>
+
+            <section>
+              <label class="plabel">Checklist</label>
+              <div id="jobStages"></div>
+            </section>
+
+            <section id="jobValidationSection" hidden>
+              <label class="plabel">Validation report</label>
+              <div id="jobValidationBody"></div>
+            </section>
+
+            <section>
+              <label class="plabel">Files produced</label>
+              <div class="job-files" id="jobFiles"></div>
+            </section>
+
+            <section>
+              <label class="plabel">Activity</label>
+              <div class="job-events" id="jobEvents"></div>
+            </section>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ================= KNOWLEDGE BASE MODE ================= -->
+      <div class="workspace-mode" id="modeKb" data-mode-panel="kb">
+        <div class="workspace-topbar">
+          <button class="ghost sidebar-menu-btn" data-sidebar-toggle type="button" title="Menu">☰</button>
+          <span style="font-weight:600">Knowledge Base</span>
+          <div class="topbar-actions">
+            <button class="ghost hdr-btn" id="rescanBtn" type="button"
+              title="Rescan the docs/ folder and index anything new or changed">rescan docs/ folder</button>
+            <button class="ghost hdr-btn" id="docsRefreshBtn" type="button" title="Reload the document list">refresh</button>
+          </div>
+        </div>
+        <div style="flex:1; min-height:0; overflow-y:auto; padding: 18px 22px 24px;">
+          <div class="prow" style="margin:0 0 4px">
+            <label class="plabel" style="margin:0;max-width:560px">Knowledge base — indexed by question intent,
+              persists on disk</label>
+            <span class="orchnote" id="docsNote"></span>
+          </div>
+          <div class="dropzone" id="dropzone">Drop files or click to add
+            <input type="file" id="docFile" accept=".pdf,.docx,.doc,.html,.htm,.txt,.md,.markdown" multiple
+              style="display:none">
+          </div>
+          <div class="doc-list" id="docList"></div>
+          <div class="doc-splitter" id="docSplitter" title="Drag to resize the document list" aria-hidden="true">
+          </div>
+          <div class="prow">
+            <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+              <label class="toggle"><input type="checkbox" id="useKB" checked> enable KB</label>
+              <label class="field">chunks / query<input class="num" id="kbK" value="4"></label>
+            </div>
+            <span class="orchnote" id="kbStatus"></span>
+          </div>
+          <div class="doc-viewer" id="docViewer" hidden>
+            <div class="dv-bar">
+              <span class="dv-name" id="dvName"></span>
+              <button class="ghost" id="dvClear" type="button">Clear</button>
+            </div>
+            <div class="dv-body" id="dvBody"></div>
+          </div>
+          <div class="prow" style="margin:26px 0 4px">
+            <label class="plabel" style="margin:0;max-width:560px">Convert to markdown — dry run: shows chunks and
+              validation findings, nothing is indexed until you commit</label>
+          </div>
+          <div class="dropzone" id="convertDropzone">Drop a file here or click to convert
+            <span class="hint" id="supportedHint">.pdf .docx .doc .html .txt .md</span>
+            <input type="file" id="convertFile" accept=".pdf,.docx,.doc,.html,.htm,.txt,.md,.markdown" multiple>
+          </div>
+          <div class="convert-log" id="convertLog"></div>
+          <div id="convertResults"></div>
+        </div>
+      </div>
+
+      <!-- ================= SETTINGS MODE ================= -->
+      <div class="workspace-mode" id="modeSettings" data-mode-panel="settings">
+        <div class="workspace-topbar">
+          <button class="ghost sidebar-menu-btn" data-sidebar-toggle type="button" title="Menu">☰</button>
+          <span style="font-weight:600">Settings</span>
+        </div>
+        <div
+          style="flex:1;min-height:0;overflow-y:auto;padding:18px 22px 32px;display:flex;flex-direction:column;gap:28px;max-width:var(--content-width);">
+          <section>
+            <label class="plabel" for="sysPrompt"
+              style="font-size:13px;text-transform:none;letter-spacing:0;color:var(--text-primary);margin-bottom:8px">System
+              prompt</label>
+            <textarea id="sysPrompt"
+              placeholder="You are a terse Linux sysadmin. Commands with dirs. No filler. Admit when you don't know."></textarea>
+            <div class="prow">
+              <div class="presets">
+                <button class="preset" data-p="terse" type="button">Linux admin</button>
+                <button class="preset" data-p="explain" type="button">Deep dive</button>
+                <button class="preset" data-p="code" type="button">Code</button>
+                <button class="preset" data-p="coach" type="button">Interview</button>
+                <button class="preset" data-p="clear" type="button">Clear</button>
+              </div>
+              <span class="saved" id="sysState">saved</span>
+            </div>
+          </section>
+
+          <section>
+            <label class="plabel"
+              style="font-size:13px;text-transform:none;letter-spacing:0;color:var(--text-primary);margin-bottom:8px">Project
+              state</label>
+            <div class="prow" id="projHostRow" style="margin:0 0 12px">
+              <span class="orchnote" id="orchNote">checking…</span>
+            </div>
+            <div class="field-block"><label class="plabel">Goal</label><input class="text" id="pGoal"
+                placeholder="what you're shipping"></div>
+            <div class="field-block"><label class="plabel">Current task</label><input class="text" id="pTask"
+                placeholder="blocking issue right now"></div>
+            <div class="pgrid">
+              <div class="field-block"><label class="plabel">Constraints</label><textarea id="pConstraints"
+                  placeholder="No Docker&#10;Runs offline&#10;Uses Ollama"></textarea></div>
+              <div class="field-block"><label class="plabel">Open issues</label><textarea id="pOpen"></textarea>
+              </div>
+              <div class="field-block"><label class="plabel">Bugs</label><textarea id="pBugs"></textarea>
+              </div>
+              <div class="field-block"><label class="plabel">Decisions</label><textarea id="pDecisions"></textarea>
+              </div>
+              <div class="field-block full"><label class="plabel">Done</label><textarea id="pCompleted"></textarea>
+              </div>
+            </div>
+            <div class="prow">
+              <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+                <label class="field">context window<select id="ctxSelect">
+                    <option value="4096">4k</option>
+                    <option value="8192">8k</option>
+                    <option value="16384">16k</option>
+                    <option value="32768" selected>32k</option>
+                  </select></label>
+                <label class="field">warn at<input class="num" id="warnTok" value="5000"></label>
+                <label class="field">refresh at<input class="num" id="dumpTok" value="6500"></label>
+                <label class="toggle"><input type="checkbox" id="autorefresh"> auto-refresh at threshold</label>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px">
+                <span class="saved" id="projSaved" style="display:none">saved</span>
+                <button class="ghost" id="pSave" type="button">Save</button>
+                <button class="act warnbtn" id="pEnd" type="button">End &amp; refresh</button>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <label class="plabel"
+              style="font-size:13px;text-transform:none;letter-spacing:0;color:var(--text-primary);margin-bottom:8px">Agentic
+              capabilities</label>
+            <div class="prow" style="margin:0">
+              <label class="toggle"><input type="checkbox" id="agenticEnable"> Enable Agentic Capabilities</label>
+            </div>
+            <div class="orchnote" style="margin-top:6px">Unlocks the Tools menu (webCrawler, localAgent) in the
+              sidebar. Each tool has its own on/off switch and its own consent step. Agentic capabilities carry risk
+              and require active human monitoring.</div>
+          </section>
+        </div>
+      </div>
+
+      <!-- ================= WEBCRAWLER MODE ================= -->
+      <div class="workspace-mode" id="modeCrawler" data-mode-panel="crawler">
+        <div class="workspace-topbar">
+          <button class="ghost sidebar-menu-btn" data-sidebar-toggle type="button" title="Menu">☰</button>
+          <span style="font-weight:600">webCrawler</span>
+          <div class="topbar-actions">
+            <label class="field">url<input class="host" id="crawlerInput" value="http://127.0.0.1:8420"
+                spellcheck="false"></label>
+            <a class="ghost hdr-btn" id="crawlerNewTab" target="_blank" rel="noopener"
+              title="Open the crawler in its own tab">Open in new tab ↗</a>
+          </div>
+        </div>
+        <div class="dv-body" id="crawlerBody" style="flex:1;min-height:0;margin:0;border:0;border-radius:0"></div>
+      </div>
+
+      <!-- ================= LOCALAGENT MODE ================= -->
+      <div class="workspace-mode" id="modeLocalAgent" data-mode-panel="localagent">
+        <div class="workspace-topbar">
+          <button class="ghost sidebar-menu-btn" data-sidebar-toggle type="button" title="Menu">☰</button>
+          <span style="font-weight:600">localAgent</span>
+        </div>
+        <div id="localAgentMount" style="flex:1;min-height:0;overflow-y:auto;padding:18px 22px 24px;">
+          <div class="dv-status">localAgent surface not yet built — mount point ready.</div>
+        </div>
+      </div>
+    </main>
+
+    <aside class="sources-panel" id="sourcesPanel">
+      <div class="sources-panel-header">
+        <span class="sources-panel-title">Sources</span>
+        <span class="sources-count-badge" id="sourcesCount">0</span>
+        <button class="ghost sources-close-btn" id="sourcesCloseBtn" type="button" title="Close">×</button>
+      </div>
+      <div class="sources-list" id="sourcesList">
+        <div class="sources-placeholder">Send a message to see the sources behind the answer.</div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- consent modal: shared by the master "Agentic Capabilities" toggle and
+       each tool's own toggle. showConsent()/closeConsent() drive it. -->
+  <div class="modal-overlay" id="consentOverlay" hidden>
+    <div class="modal-box">
+      <div class="modal-title" id="consentTitle"></div>
+      <div class="modal-body" id="consentBody"></div>
+      <div class="modal-actions">
+        <button class="ghost" id="consentCancelBtn" type="button">Cancel</button>
+        <button class="act warnbtn" id="consentAgreeBtn" type="button">I understand — enable</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const orchHost = () => $("orchInput").value.replace(/\/+$/, "");
+    const whisperHost = () => $("whisperInput").value.replace(/\/+$/, "");
+    const crawlerHost = () => $("crawlerInput").value.replace(/\/+$/, "");
+
+    let currentThreadId = null;   // null until the first message of a new chat is sent
+    let currentThread = null;     // full {id,title,messages:[...]} once loaded
+    let threads = [];             // sidebar summaries
+    let docList = [];
+    let projectState = null;
+    let streaming = false, controller = null, ending = false;
+    let activeMessageEl = null;
+    let userScrolledUp = false;
+
+    // agentic tools: master toggle + per-tool toggles, all gated by a
+    // consent modal shown once per toggle. See applyAgenticState().
+    let agenticEnabled = false, crawlerToolEnabled = false, localAgentToolEnabled = false;
+
+    const store = {
+      get: (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } },
+      set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } }
+    };
+
+    /* ---------- consent modal ---------- */
+    let consentResolve = null;
+    function showConsent(title, bodyHtml) {
+      return new Promise(resolve => {
+        consentResolve = resolve;
+        $("consentTitle").textContent = title;
+        $("consentBody").innerHTML = bodyHtml;
+        $("consentOverlay").hidden = false;
+      });
+    }
+    function closeConsent(agreed) {
+      $("consentOverlay").hidden = true;
+      const r = consentResolve; consentResolve = null;
+      if (r) r(agreed);
+    }
+    $("consentCancelBtn").addEventListener("click", () => closeConsent(false));
+    $("consentAgreeBtn").addEventListener("click", () => closeConsent(true));
+    $("consentOverlay").addEventListener("click", e => { if (e.target === $("consentOverlay")) closeConsent(false); });
+
+    /* ---------- models ---------- */
+    async function loadModels() {
+      setStatus("", "connecting…");
+      try {
+        const r = await fetch(orchHost() + "/api/models");
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const data = await r.json();
+        const models = data.models || [];
+        const sel = $("modelSelect"); sel.innerHTML = "";
+        if (!models.length) { sel.innerHTML = "<option>no models</option>"; setStatus("bad", "no models found"); return; }
+        for (const m of models) {
+          const o = document.createElement("option");
+          o.value = m.id; o.textContent = m.name + (m.available ? "" : " (unavailable)");
+          o.disabled = !m.available;
+          sel.appendChild(o);
+        }
+        const saved = store.get("model", "");
+        const opts = [...sel.options];
+        if (saved && opts.some(o => o.value === saved && !o.disabled)) sel.value = saved;
+        else { const first = opts.find(o => !o.disabled); if (first) sel.value = first.value; }
+        setStatus("ok", "connected"); $("banner").classList.remove("show"); refreshSend();
+      } catch (err) { setStatus("bad", "offline"); showBanner(); }
+    }
+    function setStatus(kind, text) { $("dot").className = "dot" + (kind ? (" " + kind) : ""); $("statusText").textContent = text; }
+    function showBanner() {
+      $("banner").innerHTML = "Orchestrator offline — start <code>orchestrator.py</code>";
+      $("banner").classList.add("show");
+    }
+
+    /* ---------- rendering: markdown / reasoning ---------- */
+    function escapeHtml(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+    function renderMarkdown(text) {
+      const parts = escapeHtml(text).split("```"); let out = "";
+      for (let i = 0; i < parts.length; i++) {
+        if (i % 2 === 1) {
+          out += '<pre><code>' + parts[i].replace(/^[a-zA-Z0-9_+#-]*\n/, "") + '</code></pre>';
+        } else {
+          out += parts[i].replace(/`([^`\n]+)`/g, '<code class="inline">$1</code>')
+            .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+            .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>").replace(/\n/g, "<br>");
+        }
+      }
+      return out;
+    }
+    function splitThinking(raw) {
+      const o = raw.indexOf("<think>"); if (o === -1) return { think: "", answer: raw, thinking: false };
+      const c = raw.indexOf("</think>");
+      if (c === -1) return { think: raw.slice(o + 7), answer: "", thinking: true };
+      return { think: raw.slice(o + 7, c), answer: raw.slice(0, o) + raw.slice(c + 8), thinking: false };
+    }
+    function renderBot(el, raw, live) {
+      const { think, answer, thinking } = splitThinking(raw); let html = "";
+      if (think.trim() || thinking) html += '<details class="think"' + (thinking ? " open" : "") + '><summary>' +
+        (thinking ? "thinking…" : "reasoning") + '</summary><div class="think-body">' + renderMarkdown(think) + '</div></details>';
+      html += renderMarkdown(answer); if (live) html += '<span class="cursor"></span>';
+      el.querySelector(".content").innerHTML = html;
+      wireCopyButtons(el);
+    }
+    function wireCopyButtons(el) {
+      el.querySelectorAll(".content pre").forEach(pre => {
+        if (pre.querySelector(".copy-btn")) return;
+        const btn = document.createElement("button");
+        btn.className = "ghost copy-btn"; btn.type = "button"; btn.textContent = "Copy";
+        btn.addEventListener("click", () => {
+          const code = pre.querySelector("code");
+          navigator.clipboard.writeText(code ? code.textContent : pre.textContent).then(() => {
+            btn.textContent = "Copied"; setTimeout(() => btn.textContent = "Copy", 1200);
+          }).catch(() => { });
+        });
+        pre.appendChild(btn);
+      });
+    }
+    function statusPillHtml(cls, label) {
+      return '<span class="status-pill ' + cls + '"><span class="status-dot"></span>' + escapeHtml(label) + '</span>';
+    }
+    function renderStatusLine(contentEl, state, model) {
+      if (state === "retrieving") contentEl.innerHTML = statusPillHtml("retrieving", "Searching the knowledge base…");
+      else if (state === "loading_model") contentEl.innerHTML = statusPillHtml("loading-model",
+        "Loading " + (model || "the model") + " from disk — this can take a few minutes…");
+      else if (state === "generating") contentEl.innerHTML = "";
+    }
+
+    /* ---------- message feed ---------- */
+    function nearBottom() { const m = $("main"); return m.scrollHeight - m.scrollTop - m.clientHeight < 80; }
+    function scrollDown(force) { const m = $("main"); if (force || !userScrolledUp) m.scrollTop = m.scrollHeight; }
+    $("main").addEventListener("scroll", () => { userScrolledUp = !nearBottom(); });
+
+    function addMessage(role) {
+      $("empty").style.display = "none";
+      const el = document.createElement("div");
+      el.className = "msg-row " + (role === "user" ? "user" : "bot");
+      el.innerHTML =
+        '<div class="msg-avatar">' + (role === "user" ? "Y" : "A") + '</div>' +
+        '<div class="msg-body">' +
+        '<div class="msg-author">' + (role === "user" ? "You" : escapeHtml(modelLabel())) + '</div>' +
+        '<div class="content msg-content"></div>' +
+        '<div class="meta msg-meta"></div>' +
+        '</div>';
+      $("wrap").appendChild(el);
+      scrollDown();
+      return el;
+    }
+    function modelLabel() {
+      const sel = $("modelSelect"); const opt = sel && sel.selectedOptions && sel.selectedOptions[0];
+      return (opt && opt.textContent) || "assistant";
+    }
+    function clearFeed() {
+      $("wrap").querySelectorAll(".msg-row, .note").forEach(n => n.remove());
+      $("empty").style.display = "";
+      activeMessageEl = null;
+    }
+    function markSelectable(el, m) {
+      el.classList.add("selectable");
+      el._msgRef = m;
+      el.addEventListener("click", () => selectMessage(el, m));
+    }
+    function renderFeed() {
+      clearFeed();
+      const msgs = (currentThread && currentThread.messages) || [];
+      if (!msgs.length) return;
+      $("empty").style.display = "none";
+      for (const m of msgs) {
+        const el = addMessage(m.role);
+        if (m.role === "user") {
+          el.querySelector(".content").textContent = m.content;
+        } else {
+          el.querySelector(".msg-author").textContent = m.model || "assistant";
+          renderBot(el, m.content || "", false);
+          if (m.stats && m.stats.eval_count && m.stats.eval_duration) {
+            el.querySelector(".meta").textContent = m.stats.eval_count + " tokens · " +
+              (m.stats.eval_count / (m.stats.eval_duration / 1e9)).toFixed(1) + " tok/s";
+          } else if (m.stopped) {
+            el.querySelector(".meta").textContent = "stopped";
+          }
+          markSelectable(el, m);
+        }
+      }
+      scrollDown(true);
+    }
+    function selectLastAssistantMessage() {
+      const rows = $("wrap").querySelectorAll(".msg-row.bot");
+      const last = rows[rows.length - 1];
+      if (last && last._msgRef) selectMessage(last, last._msgRef);
+    }
+    function selectMessage(el, m) {
+      if (activeMessageEl) activeMessageEl.classList.remove("active");
+      activeMessageEl = el; el.classList.add("active");
+      if (m.sources == null) renderSourcesPanel("off");
+      else if (!m.sources.length) renderSourcesPanel("empty");
+      else renderSourcesPanel("list", m.sources);
+      // clicking a message is an explicit request to see its sources: in
+      // drawer mode open the overlay (unless the user already dismissed it)
+      if (m.sources && m.sources.length && window.innerWidth <= 1100 && !sourcesDismissed) {
+        sourcesOpen = true; updateSourcesUI();
+      }
+    }
+
+    /* ---------- sources panel ---------- */
+    function relevanceBucket(score) {
+      if (score == null) return "low";
+      if (score >= 0.55) return "high";
+      if (score >= 0.35) return "medium";
+      return "low";
+    }
+    function sourceCardHtml(s) {
+      const bucket = relevanceBucket(s.score);
+      const meta = [];
+      const md = s.metadata || {};
+      if (md.page != null) meta.push("p. " + escapeHtml(md.page));
+      if (md.chunk_index != null) meta.push("chunk " + escapeHtml(md.chunk_index));
+      if (md.retrieved_at) meta.push(escapeHtml(md.retrieved_at));
+      const urlLink = md.url ? '<a href="' + escapeHtml(md.url) + '" target="_blank" rel="noopener">source ↗</a>' : "";
+      const cid = "src-" + Math.random().toString(36).slice(2, 10);
+      return '<div class="source-card">' +
+        '<div class="source-card-head">' +
+        '<span class="source-type-icon" aria-hidden="true">📄</span>' +
+        '<span class="source-title" title="' + escapeHtml(s.title || "") + '">' + escapeHtml(s.title || "Untitled") + '</span>' +
+        '<span class="relevance-pill ' + bucket + '">' + bucket + '</span>' +
+        '</div>' +
+        '<div class="source-content-wrap">' +
+        '<pre class="source-content" id="' + cid + '">' + escapeHtml(s.content || "") + '</pre>' +
+        '<div class="source-content-fade"></div>' +
+        '</div>' +
+        '<button class="source-expand-btn" type="button" data-target="' + cid + '">Show more</button>' +
+        (meta.length || urlLink ? '<div class="source-meta-row">' + meta.map(m => "<span>" + m + "</span>").join("") + urlLink + '</div>' : "") +
+        (s.document_id ? '<button class="source-doc-link" type="button" data-doc-id="' + escapeHtml(s.document_id) + '">Open in Knowledge Base ↗</button>' : "") +
+        '</div>';
+    }
+    function wireSourceCards(list) {
+      list.querySelectorAll(".source-expand-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const pre = document.getElementById(btn.dataset.target);
+          const expand = !pre.classList.contains("expanded");
+          pre.classList.toggle("expanded", expand);
+          btn.textContent = expand ? "Show less" : "Show more";
+        });
+      });
+      list.querySelectorAll(".source-doc-link").forEach(btn => {
+        btn.addEventListener("click", () => openDocInKb(btn.dataset.docId));
+      });
+    }
+    const SOURCES_PLACEHOLDER_TEXT = {
+      idle: "Send a message to see the sources behind the answer.",
+      pending: "Retrieving sources…",
+      off: "The knowledge base was not used for this response.",
+      empty: "No sources were retrieved for this response — the indexed documents don't cover it.",
+    };
+    function renderSourcesPanel(state, sources) {
+      const list = $("sourcesList");
+      const count = state === "list" ? sources.length : 0;
+      $("sourcesCount").textContent = count;
+      $("sourcesToggleCount").textContent = count;
+      if (state === "list") {
+        list.innerHTML = sources.map(sourceCardHtml).join("");
+        wireSourceCards(list);
+        updateSourcesUI();
+        return;
+      }
+      list.innerHTML = '<div class="sources-placeholder">' + escapeHtml(SOURCES_PLACEHOLDER_TEXT[state] || SOURCES_PLACEHOLDER_TEXT.idle) + '</div>';
+      updateSourcesUI();
+    }
+    function openDocInKb(docId) {
+      switchMode("kb");
+      setTimeout(() => {
+        const row = $("docList").querySelector('[data-doc-id="' + cssEscape(docId) + '"]');
+        if (row) row.click();
+      }, 0);
+    }
+    function cssEscape(s) { return window.CSS && CSS.escape ? CSS.escape(s) : s.replace(/[^a-zA-Z0-9_-]/g, "\\$&"); }
+
+    /* ---------- threads (persisted history) ---------- */
+    async function createThread(title) {
+      try {
+        const r = await fetch(orchHost() + "/threads", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: title || "" })
+        });
+        if (!r.ok) return null;
+        return await r.json();
+      } catch (e) { return null; }
+    }
+    async function refreshThreadList() {
+      try {
+        const r = await fetch(orchHost() + "/threads");
+        const d = await r.json(); threads = d.threads || [];
+      } catch (e) { threads = []; }
+      renderThreadList();
+    }
+    function renderThreadList() {
+      const el = $("threadList");
+      if (!threads.length) { el.innerHTML = '<div class="thread-empty">No conversations yet</div>'; return; }
+      el.innerHTML = threads.map(t =>
+        '<button class="thread-item' + (t.id === currentThreadId ? " active" : "") + '" type="button" data-thread-id="' +
+        escapeHtml(t.id) + '" title="' + escapeHtml(t.title || "New chat") + '">' + escapeHtml(t.title || "New chat") + '</button>'
+      ).join("");
+      el.querySelectorAll(".thread-item").forEach(btn => btn.addEventListener("click", () => openThread(btn.dataset.threadId)));
+    }
+    async function openThread(id) {
+      if (streaming) return;
+      let r; try { r = await fetch(orchHost() + "/threads/" + id); } catch (e) { return; }
+      if (!r.ok) return;
+      currentThread = await r.json(); currentThreadId = currentThread.id;
+      $("threadTitleInput").value = currentThread.title || "New chat";
+      sourcesOpen = false; sourcesDismissed = false;
+      renderFeed();
+      selectLastAssistantMessage();
+      if (!activeMessageEl) renderSourcesPanel("idle");
+      renderThreadList();
+      switchMode("chat");
+      closeSidebarDrawer();
+      updateMonitor();
+    }
+    function newChat() {
+      if (streaming) return;
+      currentThreadId = null; currentThread = null;
+      $("threadTitleInput").value = "";
+      sourcesOpen = false; sourcesDismissed = false;
+      clearFeed();
+      renderSourcesPanel("idle");
+      renderThreadList();
+      switchMode("chat");
+      closeSidebarDrawer();
+      updateMonitor();
+    }
+    async function reloadCurrentThread() {
+      if (!currentThreadId) return;
+      try {
+        const r = await fetch(orchHost() + "/threads/" + currentThreadId);
+        if (r.ok) currentThread = await r.json();
+      } catch (e) { }
+      renderFeed();
+      selectLastAssistantMessage();
+      refreshThreadList();
+    }
+    let titleSaveTimer = null;
+    $("threadTitleInput").addEventListener("change", async () => {
+      if (!currentThreadId) return;
+      const title = $("threadTitleInput").value.trim() || "New chat";
+      try {
+        const r = await fetch(orchHost() + "/threads/" + currentThreadId, {
+          method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title })
+        });
+        if (r.ok) { currentThread = await r.json(); refreshThreadList(); }
+      } catch (e) { }
+    });
+
+    /* ---------- mode switching (chat / knowledge base / settings / tools) ---------- */
+    function toolLive(tool) {
+      if (!agenticEnabled) return false;
+      if (tool === "crawler") return crawlerToolEnabled;
+      if (tool === "localagent") return localAgentToolEnabled;
+      return false;
+    }
+    function activeModePanel() {
+      const el = document.querySelector(".workspace-mode.is-active");
+      return el ? el.dataset.modePanel : "chat";
+    }
+    function switchMode(mode) {
+      // both tool panels are gated: unreachable unless the master toggle AND
+      // that tool's own toggle are ON, regardless of how the switch was triggered.
+      if ((mode === "crawler" || mode === "localagent") && !toolLive(mode)) return;
+      document.querySelectorAll(".workspace-mode").forEach(el => el.classList.toggle("is-active", el.dataset.modePanel === mode));
+      document.querySelectorAll(".nav-item[data-mode]").forEach(el => el.classList.toggle("is-active", el.dataset.mode === mode));
+      $("shell").classList.toggle("crawler-full", mode === "crawler");
+      if (mode === "kb") fetchDocs();
+      if (mode === "settings") fetchState();
+      if (mode === "crawler") loadCrawler();
+      if (mode === "localagent") loadLocalAgent();
+      if (mode === "job") loadJobTab(); else stopJobPoll();
+      // the sources panel is chat-only: never visible in any other view
+      updateSourcesUI();
+    }
+    $("navChat").addEventListener("click", newChat);
+    $("navJob").addEventListener("click", () => switchMode("job"));
+    $("navKb").addEventListener("click", () => switchMode("kb"));
+    $("navSettings").addEventListener("click", () => switchMode("settings"));
+    function loadCrawler() {
+      // Plain, unconditional iframe -- no health probe. A cross-origin
+      // fetch(url + "/health") can't be trusted here: the browser discards
+      // a CORS-blocked response before JS ever sees it, so a probe reports
+      // "not running" even when the server answered 200. If the crawler is
+      // actually down, the iframe shows the browser's own connection error.
+      const url = crawlerHost();
+      $("crawlerNewTab").href = url + "/";
+      const body = $("crawlerBody"); body.innerHTML = "";
+      const frame = document.createElement("iframe");
+      frame.id = "crawlerFrame"; frame.title = "webCrawler"; frame.referrerPolicy = "no-referrer";
+      frame.style.cssText = "display:block;width:100%;height:100%;border:0;background:var(--bg-app)";
+      frame.src = url + "/";
+      body.appendChild(frame);
+    }
+    /* ---------- localAgent (user-granted directories, gated executor) ---------- */
+    // Renders into #localAgentMount, reusing the store helper, escapeHtml,
+    // and the same fetch-stream reader shape /chat/stream uses. Directories
+    // come only from what the user types into #laDirInput -- the model
+    // never names a new path that becomes granted, it only ever operates
+    // inside one already added (mirrors the webCrawler URL-field pattern:
+    // type a value, click a button, the panel acts on it). Capability
+    // truth (read/write/execute) lives server-side in LOCAL_AGENT_DIRS;
+    // this cache is display-only and is refetched on every panel entry so
+    // it never drifts from what the server will actually allow.
+    let laDirs = [];
+    let laStreamController = null;  // AbortController for whichever stream is currently open
+    let laExecTaskId = null;        // set once an exec proposal reaches awaiting_exec_confirm
+
+    function laStyleOnce() {
+      if ($("laStyleTag")) return;
+      const style = document.createElement("style");
+      style.id = "laStyleTag";
+      style.textContent =
+        '.la-wrap{display:flex;flex-direction:column;gap:16px;max-width:900px}' +
+        '.la-panel{border:1px solid var(--border-default);border-radius:var(--radius-sm);background:var(--bg-elevated)}' +
+        '.la-panel-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border-default);font-weight:600}' +
+        '.la-add-row{padding:10px 14px;display:flex;gap:8px;border-bottom:1px solid var(--border-default)}' +
+        '.la-add-row input{flex:1}' +
+        '.la-empty{padding:14px;color:var(--text-secondary);font-size:13px}' +
+        '.la-dir-row{padding:10px 14px;border-bottom:1px solid var(--border-default);display:flex;flex-direction:column;gap:8px}' +
+        '.la-dir-row:last-child{border-bottom:0}' +
+        '.la-dir-path{font-family:var(--font-mono);font-size:12.5px;word-break:break-all}' +
+        '.la-dir-caps{display:flex;gap:16px;font-size:12.5px;color:var(--text-secondary)}' +
+        '.la-dir-caps label{display:flex;align-items:center;gap:5px;cursor:pointer}' +
+        '.la-dir-actions{display:flex;gap:8px;flex-wrap:wrap}' +
+        '.la-dir-actions button.danger{color:var(--danger-text);border-color:var(--danger-border)}' +
+        '.la-log{padding:10px 14px;max-height:420px;overflow-y:auto;font-family:var(--font-mono);font-size:12.5px;display:flex;flex-direction:column;gap:6px}' +
+        '.la-log-line{white-space:pre-wrap;word-break:break-word}' +
+        '.la-log-line.err{color:var(--danger-text)}' +
+        '.la-log-line.ok{color:var(--success-text)}' +
+        '.la-gate{border:1px solid var(--warning-border);background:var(--warning-soft);border-radius:var(--radius-sm);padding:10px 12px;display:flex;flex-direction:column;gap:8px;font-size:12.5px}' +
+        '.la-gate .mono,.la-log .mono{font-family:var(--font-mono);word-break:break-all}' +
+        '.la-gate-actions{display:flex;gap:8px}' +
+        '.la-tree{margin:4px 0 0;padding-left:16px;list-style:none;font-family:var(--font-mono);font-size:12.5px}' +
+        '.la-tree li{margin:2px 0}' +
+        '.la-tree .rejected{color:var(--danger-text)}';
+      document.head.appendChild(style);
+    }
+
+    function renderLocalAgentSurface() {
+      laStyleOnce();
+      const mount = $("localAgentMount");
+      mount.innerHTML =
+        '<div class="la-wrap">' +
+        '<div class="la-panel"><div class="la-panel-head">Granted directories</div>' +
+        '<div class="la-add-row"><input class="host" id="laDirInput" placeholder="/absolute/path/to/directory" spellcheck="false">' +
+        '<button class="act" id="laAddDirBtn" type="button">Add</button></div>' +
+        '<div id="laDirList"></div></div>' +
+        '<div class="la-panel"><div class="la-panel-head">Activity</div><div class="la-log" id="laLog">' +
+        '<div class="la-empty">Add a directory above, then switch on read/write/execute for what it may do.</div></div></div>' +
+        '</div>';
+      $("laAddDirBtn").addEventListener("click", laAddDir);
+      $("laDirInput").addEventListener("keydown", e => { if (e.key === "Enter") laAddDir(); });
+      laLoadDirs();
+    }
+
+    function loadLocalAgent() {
+      // A stream in flight owns the DOM it's logging into -- don't rebuild
+      // under it just because the panel was revisited. Only a real
+      // toggle-off interrupt (which clears both of these) starts clean.
+      if (laStreamController) return;
+      renderLocalAgentSurface();
+    }
+
+    async function laLoadDirs() {
+      const list = $("laDirList");
+      if (!list) return;
+      list.innerHTML = '<div class="la-empty">loading…</div>';
+      let data;
+      try {
+        const r = await fetch(orchHost() + "/localagent/directories");
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        data = await r.json();
+      } catch (e) {
+        list.innerHTML = '<div class="la-empty">unreachable — is the orchestrator running?</div>';
+        return;
+      }
+      if (activeModePanel() !== "localagent") return; // panel switched away while loading
+      laDirs = (data && data.directories) || [];
+      if (!laDirs.length) { list.innerHTML = '<div class="la-empty">no granted directories yet</div>'; return; }
+      list.innerHTML = laDirs.map(laDirRowHtml).join("");
+      list.querySelectorAll(".la-dir-row").forEach(row => {
+        const id = row.dataset.id;
+        row.querySelectorAll("input[data-cap]").forEach(cb =>
+          cb.addEventListener("change", () => laSetCapability(id, cb.dataset.cap, cb.checked)));
+        row.querySelectorAll("button[data-act]").forEach(btn =>
+          btn.addEventListener("click", () => laDirAction(id, btn.dataset.act)));
+      });
+    }
+
+    function laDirRowHtml(d) {
+      return '<div class="la-dir-row" data-id="' + escapeHtml(d.id) + '">' +
+        '<div class="la-dir-path">' + escapeHtml(d.path) + '</div>' +
+        '<div class="la-dir-caps">' +
+        ['read', 'write', 'execute'].map(cap =>
+          '<label><input type="checkbox" data-cap="' + cap + '"' + (d[cap] ? ' checked' : '') + '> ' + cap + '</label>'
+        ).join('') +
+        '</div>' +
+        '<div class="la-dir-actions">' +
+        '<button class="ghost" data-act="crawl"' + (d.read ? '' : ' disabled') + ' type="button">Crawl</button>' +
+        '<button class="ghost" data-act="newdoc"' + (d.write ? '' : ' disabled') + ' type="button">New document…</button>' +
+        '<button class="ghost" data-act="newdir"' + (d.write ? '' : ' disabled') + ' type="button">New folder…</button>' +
+        '<button class="ghost" data-act="exec"' + (d.execute ? '' : ' disabled') + ' type="button">Find &amp; run installer…</button>' +
+        '<button class="ghost danger" data-act="remove" type="button">Remove</button>' +
+        '</div></div>';
+    }
+
+    async function laAddDir() {
+      const input = $("laDirInput");
+      const path = (input.value || "").trim();
+      if (!path) return;
+      try {
+        const r = await fetch(orchHost() + "/localagent/directories", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path })
+        });
+        const d = await r.json();
+        if (!r.ok) { laLogLine("Error: " + escapeHtml(d.error || ("HTTP " + r.status)), "err"); return; }
+        input.value = "";
+        laLoadDirs();
+      } catch (e) { laLogLine("Error adding directory: " + escapeHtml(e.message || String(e)), "err"); }
+    }
+
+    async function laSetCapability(dirId, cap, on) {
+      try {
+        const r = await fetch(orchHost() + "/localagent/directories/" + dirId, {
+          method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [cap]: on })
+        });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+      } catch (e) { laLogLine("Error updating capability: " + escapeHtml(e.message || String(e)), "err"); }
+      laLoadDirs();
+    }
+
+    async function laRemoveDir(dirId) {
+      try { await fetch(orchHost() + "/localagent/directories/" + dirId, { method: "DELETE" }); }
+      catch (e) { /* best-effort */ }
+      laLoadDirs();
+    }
+
+    function laDirAction(dirId, action) {
+      if (laStreamController) return; // one stream at a time
+      if (action === "crawl") return laRunCrawl(dirId);
+      if (action === "newdir") return laRunWrite(dirId, "dir");
+      if (action === "newdoc") return laRunWrite(dirId, "doc");
+      if (action === "exec") return laRunExec(dirId);
+      if (action === "remove") return laRemoveDir(dirId);
+    }
+
+    function laLogLine(html, cls) {
+      const log = $("laLog"); if (!log) return;
+      const empty = log.querySelector(".la-empty"); if (empty) empty.remove();
+      const div = document.createElement("div");
+      div.className = "la-log-line" + (cls ? " " + cls : "");
+      div.innerHTML = html;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+    function laClearGate() { const g = $("laGate"); if (g) g.remove(); }
+    function laRenderGate(bodyHtml, buttons) {
+      laClearGate();
+      const log = $("laLog"); if (!log) return;
+      const div = document.createElement("div");
+      div.className = "la-gate"; div.id = "laGate";
+      div.innerHTML = '<div>' + bodyHtml + '</div><div class="la-gate-actions"></div>';
+      const actions = div.querySelector(".la-gate-actions");
+      buttons.forEach(b => {
+        const btn = document.createElement("button");
+        btn.type = "button"; btn.className = b.cls; btn.textContent = b.label;
+        btn.addEventListener("click", b.onClick);
+        actions.appendChild(btn);
+      });
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function laRenderTree(node) {
+      if (!node) return "";
+      const icon = node.type === "dir" ? "📁" : (node.type === "rejected" ? "⛔" : "📄");
+      let html = '<li class="' + (node.type === "rejected" ? "rejected" : "") + '">' + icon + ' ' + escapeHtml(node.name || "") +
+        (node.type === "rejected" ? " (" + escapeHtml(node.reason || "rejected") + ")" : "") +
+        (node.truncated ? " …(truncated)" : "") +
+        (node.error ? " (" + escapeHtml(node.error) + ")" : "");
+      if (node.children && node.children.length) {
+        html += '<ul class="la-tree">' + node.children.map(laRenderTree).join("") + '</ul>';
+      }
+      html += '</li>';
+      return html;
+    }
+
+    /* ---------- streaming: shared reader for crawl/write/exec ---------- */
+    async function laRunStream(url, body, onEvent) {
+      laStreamController = new AbortController();
+      try {
+        const r = await fetch(orchHost() + url, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body), signal: laStreamController.signal
+        });
+        if (!r.ok || !r.body) { laLogLine("Error: HTTP " + r.status, "err"); return; }
+        const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = "";
+        while (true) {
+          const { done, value } = await reader.read(); if (done) break;
+          buf += dec.decode(value, { stream: true }); F
+          const frames = buf.split("\n\n"); buf = frames.pop();
+          for (const frame of frames) {
+            if (!frame.trim()) continue;
+            let ev = "message", data = null;
+            for (const line of frame.split("\n")) {
+              if (line.startsWith("event:")) ev = line.slice(6).trim();
+              else if (line.startsWith("data:")) { try { data = JSON.parse(line.slice(5).trim()); } catch (e) { } }
+            }
+            if (data == null) continue;
+            onEvent(ev, data);
+          }
+        }
+      } catch (e) {
+        if (e.name !== "AbortError") laLogLine("Error: " + escapeHtml(e.message || String(e)), "err");
+      } finally {
+        laStreamController = null;
+        if (activeModePanel() === "localagent") laLoadDirs();
+      }
+    }
+
+    function laRunCrawl(dirId) {
+      const log = $("laLog"); if (log) log.innerHTML = "";
+      laRunStream("/localagent/crawl/stream", { dir_id: dirId }, (ev, data) => {
+        if (ev === "crawling") laLogLine("Crawling <span class=\"mono\">" + escapeHtml(data.directory) + "</span>…");
+        else if (ev === "structure") laLogLine('<ul class="la-tree">' + laRenderTree(data.tree) + '</ul>');
+        else if (ev === "done") laLogLine("Done — " + escapeHtml(data.summary), "ok");
+        else if (ev === "error") laLogLine("Error: " + escapeHtml(data.message), "err");
+      });
+    }
+
+    function laRunWrite(dirId, kind) {
+      const name = prompt(kind === "dir" ? "New folder name (e.g. notes/2026):" : "New document name (.md or .txt):");
+      if (!name) return;
+      let content = "";
+      if (kind === "doc") content = prompt("Document content:") || "";
+      const log = $("laLog"); if (log) log.innerHTML = "";
+      laRunStream("/localagent/write/stream", { dir_id: dirId, kind, name, content }, (ev, data) => {
+        if (ev === "writing") laLogLine("Creating " + escapeHtml(data.kind) + " <span class=\"mono\">" + escapeHtml(data.path) + "</span>…");
+        else if (ev === "wrote") laLogLine("Created <span class=\"mono\">" + escapeHtml(data.path) + "</span>", "ok");
+        else if (ev === "done") laLogLine("Done — " + escapeHtml(data.summary), "ok");
+        else if (ev === "error") laLogLine("Error: " + escapeHtml(data.message), "err");
+      });
+    }
+
+    function laRunExec(dirId) {
+      const log = $("laLog"); if (log) log.innerHTML = "";
+      laRunStream("/localagent/exec/stream", { dir_id: dirId }, (ev, data) => {
+        if (ev === "proposed_exec") {
+          laExecTaskId = data.task_id; // capture as early as possible, ahead of the confirm gate
+          laLogLine("Candidate: <b>" + escapeHtml(data.file) + "</b><br><span class=\"mono\">sha256: " +
+            escapeHtml(data.sha256) + "</span><br><span class=\"mono\">command: " + escapeHtml(data.command) + "</span>");
+        } else if (ev === "awaiting_exec_confirm") {
+          laRenderGate("Run this file? This is the only click that can execute it.", [
+            { label: "Yes, run it", cls: "act warnbtn", onClick: () => laConfirmExec(true) },
+            { label: "No", cls: "ghost", onClick: () => laConfirmExec(false) },
+          ]);
+        } else if (ev === "executing") {
+          laClearGate();
+          laLogLine("Executing: <span class=\"mono\">" + escapeHtml(data.command) + "</span> in " + escapeHtml(data.cwd) + "…");
+        } else if (ev === "exec_result") {
+          laLogLine("Exit code: " + escapeHtml(data.exit_code), data.exit_code === 0 ? "ok" : "err");
+        } else if (ev === "done") {
+          laClearGate();
+          laLogLine("Done — " + escapeHtml(data.summary), "ok");
+          laExecTaskId = null;
+        } else if (ev === "error") {
+          laClearGate();
+          laLogLine("Error: " + escapeHtml(data.message), "err");
+        }
+      });
+    }
+
+    async function laConfirmExec(yes) {
+      if (!laExecTaskId) return;
+      laClearGate();
+      try {
+        const r = await fetch(orchHost() + "/localagent/exec/" + laExecTaskId + "/confirm", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ yes })
+        });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+      } catch (e) { laLogLine("Error sending confirmation: " + escapeHtml(e.message || String(e)), "err"); }
+    }
+
+    function laInterruptForToggleOff() {
+      // Called from enforceToolGating() the instant the master or
+      // localAgent toggle goes off mid-task: halt the stream here (abort),
+      // and if an execution was awaiting confirmation or running, tell the
+      // server to stop it too. No grant to revoke any more -- directory
+      // access stays exactly as the user left it; this just stops cleanly.
+      const execId = laExecTaskId;
+      laExecTaskId = null;
+      if (laStreamController) { try { laStreamController.abort(); } catch (e) { } laStreamController = null; }
+      if (execId) fetch(orchHost() + "/localagent/exec/" + execId + "/interrupt", { method: "POST" }).catch(() => { });
+    }
+
+    $("navCrawlerTool").addEventListener("click", () => switchMode("crawler"));
+    $("navLocalAgentTool").addEventListener("click", () => switchMode("localagent"));
+    $("historyToggle").addEventListener("click", () => {
+      const collapsed = $("sidebarThreads").classList.toggle("collapsed");
+      $("historyChevron").textContent = collapsed ? "▸" : "▾";
+    });
+    $("toolsToggle").addEventListener("click", () => {
+      const collapsed = $("sidebarTools").classList.toggle("collapsed");
+      $("toolsChevron").textContent = collapsed ? "▸" : "▾";
+    });
+
+    /* ---------- agentic capabilities: master + per-tool toggles ---------- */
+    function enforceToolGating() {
+      const active = activeModePanel();
+      // A task in flight is not just a navigation concern: halt its stream
+      // and revoke any open grant before leaving, so an interrupted task is
+      // treated as the terminal outcome it is (see laInterruptForToggleOff).
+      if (active === "localagent" && !toolLive("localagent")) laInterruptForToggleOff();
+      if ((active === "crawler" || active === "localagent") && !toolLive(active)) switchMode("chat");
+    }
+    function applyAgenticState() {
+      $("sidebarTools").hidden = !agenticEnabled;
+      enforceToolGating();
+    }
+    async function consentGate(ackKey, title, bodyHtml) {
+      if (store.get(ackKey, "0") === "1") return true;
+      const agreed = await showConsent(title, bodyHtml);
+      if (agreed) store.set(ackKey, "1");
+      return agreed;
+    }
+    $("agenticEnable").addEventListener("change", async () => {
+      const cb = $("agenticEnable");
+      if (cb.checked) {
+        const ok = await consentGate("agenticConsentAck", "Enable Agentic Capabilities",
+          "Agentic capabilities carry risk and require active human monitoring to maintain accuracy and control.");
+        if (!ok) { cb.checked = false; return; }
+        agenticEnabled = true; store.set("agenticEnabled", "1");
+      } else {
+        agenticEnabled = false; store.set("agenticEnabled", "0");
+      }
+      applyAgenticState();
+    });
+    $("crawlerEnableToggle").addEventListener("change", async () => {
+      const cb = $("crawlerEnableToggle");
+      if (cb.checked) {
+        const ok = await consentGate("toolCrawlerConsentAck", "Enable webCrawler",
+          "Agentic capabilities carry risk and require active human monitoring to maintain accuracy and control.");
+        if (!ok) { cb.checked = false; return; }
+        crawlerToolEnabled = true; store.set("toolCrawlerEnabled", "1");
+      } else {
+        crawlerToolEnabled = false; store.set("toolCrawlerEnabled", "0");
+        enforceToolGating();
+      }
+    });
+    $("localAgentEnableToggle").addEventListener("change", async () => {
+      const cb = $("localAgentEnableToggle");
+      if (cb.checked) {
+        const ok = await consentGate("toolLocalAgentConsentAck", "Enable localAgent",
+          "This tool acts on your files and requires human monitoring; back up your data first — if the agent misbehaves, backups are what stand between a mistake and data loss.");
+        if (!ok) { cb.checked = false; return; }
+        localAgentToolEnabled = true; store.set("toolLocalAgentEnabled", "1");
+      } else {
+        localAgentToolEnabled = false; store.set("toolLocalAgentEnabled", "0");
+        enforceToolGating();
+      }
+    });
+
+    /* ---------- responsive drawers (<1100px) + sources panel visibility ----------
+       The sources panel takes zero width and its header pill is hidden unless
+       the active conversation actually has retrieved sources (count > 0).
+       The pill toggles the panel; at or below 1100px the panel is an overlay
+       drawer on top of the content (CSS), above that a third grid column
+       (.sources-open on .shell). It never appears outside chat mode
+       (switchMode calls updateSourcesUI). */
+    let sourcesOpen = false;      // toggle state for the active conversation
+    let sourcesDismissed = false; // user closed it — don't auto-reopen for this conversation
+
+    function sourcesRetrievedCount() { return parseInt($("sourcesToggleCount").textContent, 10) || 0; }
+    function updateSourcesUI() {
+      const has = sourcesRetrievedCount() > 0;
+      $("sourcesToggleBtn").classList.toggle("has-sources", has);
+      const show = has && sourcesOpen && activeModePanel() === "chat";
+      $("shell").classList.toggle("sources-open", show);
+      $("sourcesPanel").classList.toggle("open", show);
+    }
+    function setSourcesOpen(open, byUser) {
+      sourcesOpen = open;
+      if (byUser && !open) sourcesDismissed = true;
+      updateSourcesUI();
+    }
+    function openSidebarDrawer() { $("sidebar").classList.add("open"); }
+    function closeSidebarDrawer() { $("sidebar").classList.remove("open"); }
+    function toggleSidebarDrawer() { $("sidebar").classList.toggle("open"); }
+    document.querySelectorAll("[data-sidebar-toggle]").forEach(b => b.addEventListener("click", toggleSidebarDrawer));
+    $("sourcesToggleBtn").addEventListener("click", () => setSourcesOpen(!sourcesOpen, true));
+    $("sourcesCloseBtn").addEventListener("click", () => setSourcesOpen(false, true));
+    document.addEventListener("click", (e) => {
+      if (window.innerWidth > 1100) return;
+      if ($("sidebar").classList.contains("open") && !$("sidebar").contains(e.target) && !e.target.closest("[data-sidebar-toggle]")) closeSidebarDrawer();
+      if ($("sourcesPanel").classList.contains("open") && !$("sourcesPanel").contains(e.target) && !e.target.closest("#sourcesToggleBtn")) setSourcesOpen(false, true);
+    });
+
+    /* ---------- project state ---------- */
+    function linesToArr(s) { return s.split("\n").map(x => x.trim()).filter(Boolean); }
+    function arrToLines(a) { return (a || []).join("\n"); }
+
+    async function fetchState() {
+      try {
+        const r = await fetch(orchHost() + "/state"); if (!r.ok) throw new Error("HTTP " + r.status);
+        projectState = await r.json(); setOrch(true, ""); renderProjectPanel();
+      } catch (e) { projectState = null; setOrch(false, "offline — chat still works, project state disabled"); }
+      updateMonitor();
+    }
+    function setOrch(ok, msg) { const n = $("orchNote"); n.textContent = ok ? ("connected · " + (projectState && projectState.updated_at ? ("saved " + projectState.updated_at) : "new project")) : msg; n.classList.toggle("bad", !ok); }
+    function renderProjectPanel() {
+      const s = projectState || {};
+      $("pGoal").value = s.goal || ""; $("pTask").value = s.current_task || "";
+      $("pConstraints").value = arrToLines(s.constraints); $("pOpen").value = arrToLines(s.open_tasks);
+      $("pBugs").value = arrToLines(s.known_bugs); $("pDecisions").value = arrToLines(s.design_decisions);
+      $("pCompleted").value = arrToLines(s.completed);
+    }
+    function collectProjectPanel() {
+      const base = projectState || {};
+      return Object.assign({}, base, {
+        goal: $("pGoal").value.trim(), current_task: $("pTask").value.trim(),
+        constraints: linesToArr($("pConstraints").value), open_tasks: linesToArr($("pOpen").value),
+        known_bugs: linesToArr($("pBugs").value), design_decisions: linesToArr($("pDecisions").value),
+        completed: linesToArr($("pCompleted").value)
+      });
+    }
+    async function saveState() {
+      const body = collectProjectPanel();
+      try {
+        const r = await fetch(orchHost() + "/state", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        projectState = await r.json(); setOrch(true, "");
+        const t = $("projSaved"); t.style.display = ""; setTimeout(() => t.style.display = "none", 1500);
+        updateMonitor();
+      } catch (e) { setOrch(false, "save failed: " + e.message); }
+    }
+    function buildProjectContext() {
+      const s = projectState; if (!s) return "";
+      const L = ["=== PROJECT STATE (durable ground truth — the chat below is a temporary scratchpad) ==="];
+      if (s.goal) L.push("Goal: " + s.goal);
+      if (s.current_task) L.push("Current task: " + s.current_task);
+      if (s.constraints && s.constraints.length) L.push("Constraints:\n" + s.constraints.map(x => "- " + x).join("\n"));
+      if (s.open_tasks && s.open_tasks.length) L.push("Open tasks:\n" + s.open_tasks.map(x => "- " + x).join("\n"));
+      if (s.known_bugs && s.known_bugs.length) L.push("Known bugs:\n" + s.known_bugs.map(x => "- " + x).join("\n"));
+      if (s.design_decisions && s.design_decisions.length) L.push("Design decisions:\n" + s.design_decisions.map(x => "- " + x).join("\n"));
+      if (s.completed && s.completed.length) L.push("Completed:\n" + s.completed.slice(-12).map(x => "- " + x).join("\n"));
+      if (s.last_summary) L.push("Most recent session summary:\n" + s.last_summary);
+      return L.join("\n");
+    }
+
+    /* ---------- knowledge base (RAG) doc list + inline viewer ---------- */
+    function kbActive() { return $("useKB").checked && docList.length > 0; }
+    function kbK() { return Math.max(1, parseInt($("kbK").value, 10) || 4); }
+    function docsCountText() { return docList.length + " doc" + (docList.length !== 1 ? "s" : "") + " indexed"; }
+
+    async function fetchDocs() {
+      try {
+        const r = await fetch(orchHost() + "/docs"); if (!r.ok) throw new Error("HTTP " + r.status);
+        const d = await r.json(); docList = d.docs || []; renderDocs();
+        if (d.supported_extensions) $("supportedHint").textContent = d.supported_extensions.join(" ");
+        $("docsNote").textContent = docsCountText(); $("docsNote").classList.remove("bad");
+      } catch (e) { docList = []; renderDocs(); $("docsNote").textContent = "orchestrator offline — start orchestrator.py"; $("docsNote").classList.add("bad"); }
+      updateMonitor();
+    }
+    function renderDocs() {
+      const L = $("docList");
+      if (!docList.length) {
+        L.innerHTML = '<div class="dmeta" style="padding:6px 4px">no documents yet</div>';
+        if (selectedDocId) clearDocSelection();
+        return;
+      }
+      L.innerHTML = "";
+      let stillPresent = false;
+      for (const d of docList) {
+        const row = document.createElement("div"); row.className = "doc-row"; row.dataset.docId = d.id;
+        const statusCls = d.errors > 0 ? "err" : (d.warnings > 0 ? "warn" : "");
+        const statusTitle = d.errors > 0 ? d.errors + " error(s)" : (d.warnings > 0 ? d.warnings + " warning(s)" : "retrieval ready");
+        const meta = [d.chunks + " chunks"];
+        if (d.warnings) meta.push(d.warnings + " warn");
+        if (d.errors) meta.push(d.errors + " err");
+        row.innerHTML = '<span class="dstatus ' + statusCls + '" title="' + escapeHtml(statusTitle) + '"></span>' +
+          '<span class="dfmt">' + escapeHtml(d.source_format || "") + '</span>';
+        row.appendChild(buildDocNameCell(d));
+        const metaSpan = document.createElement("span");
+        metaSpan.className = "dmeta"; metaSpan.textContent = meta.join(" · ");
+        const detailsBtn = document.createElement("button");
+        detailsBtn.className = "dact"; detailsBtn.type = "button"; detailsBtn.textContent = "View Details";
+        detailsBtn.addEventListener("click", e => e.stopPropagation());
+        const rmBtn = document.createElement("button");
+        rmBtn.className = "drm"; rmBtn.type = "button"; rmBtn.textContent = "remove";
+        rmBtn.addEventListener("click", (e) => { e.stopPropagation(); removeDoc(d.id); });
+        row.append(metaSpan, detailsBtn, rmBtn);
+        row.addEventListener("click", () => selectDoc(d, row));
+        if (d.id === selectedDocId) { row.classList.add("selected"); stillPresent = true; }
+        L.appendChild(row);
+
+        // expandable diagnostics panel directly beneath this row, fetched
+        // (GET /docs/{id}) on first open only — see loadKbDetails
+        const details = document.createElement("div");
+        details.className = "doc-details"; details.style.display = "none";
+        const detailsContent = document.createElement("div");
+        detailsContent.className = "details-panel";
+        details.appendChild(detailsContent);
+        L.appendChild(details);
+        wireDetailsToggleAsync(detailsBtn, details, detailsContent, () => loadKbDetails(d.id, detailsContent));
+      }
+      if (selectedDocId && !stillPresent) clearDocSelection();
+      if (selectedDocId && stillPresent) {
+        const sel = docList.find(x => x.id === selectedDocId);
+        if (sel) $("dvName").textContent = sel.name;
+      }
+    }
+
+    let selectedDocId = null;
+    let docListHeight = 200;
+
+    function showDocViewer() { $("docViewer").hidden = false; }
+    function hideDocViewer() { $("docViewer").hidden = true; }
+
+    function clearDocSelection() {
+      selectedDocId = null;
+      $("docList").querySelectorAll(".doc-row.selected").forEach(r => r.classList.remove("selected"));
+      hideDocViewer();
+    }
+
+    function dvSetStatus(text, isError) {
+      const body = $("dvBody"); body.innerHTML = "";
+      const div = document.createElement("div");
+      div.className = "dv-status" + (isError ? " err" : "");
+      div.textContent = text;
+      body.appendChild(div);
+    }
+
+    async function fetchDocOk(url) {
+      let r;
+      try { r = await fetch(url); }
+      catch (e) { return { ok: false, message: "request failed — " + e.message }; }
+      if (r.ok) return { ok: true, response: r };
+      let detail = "";
+      try { const d = await r.json(); if (d && d.error) detail = d.error; } catch (e) { }
+      return { ok: false, status: r.status, message: "HTTP " + r.status + (detail ? " — " + detail : "") };
+    }
+
+    async function loadPdfDoc(doc) {
+      const url = orchHost() + "/docs/" + doc.id + "/raw";
+      const check = await fetchDocOk(url);
+      if (selectedDocId !== doc.id) return;
+      if (!check.ok) { dvSetStatus(check.message, true); return; }
+      if (check.response.body) { try { await check.response.body.cancel(); } catch (e) { } }
+      const body = $("dvBody"); body.innerHTML = "";
+      const frame = document.createElement("iframe");
+      frame.title = doc.name;
+      frame.src = url + "#toolbar=0&navpanes=0";
+      body.appendChild(frame);
+    }
+
+    async function loadMarkdownDoc(doc) {
+      const url = orchHost() + "/docs/" + doc.id + "/markdown";
+      const check = await fetchDocOk(url);
+      if (selectedDocId !== doc.id) return;
+      if (!check.ok) { dvSetStatus(check.message, true); return; }
+      const text = await check.response.text();
+      if (selectedDocId !== doc.id) return;
+      const body = $("dvBody"); body.innerHTML = "";
+      const pre = document.createElement("pre");
+      pre.className = "dv-md";
+      pre.textContent = text;
+      body.appendChild(pre);
+    }
+
+    async function selectDoc(doc, rowEl) {
+      if (selectedDocId === doc.id) return;
+      $("docList").querySelectorAll(".doc-row.selected").forEach(r => r.classList.remove("selected"));
+      rowEl.classList.add("selected");
+      selectedDocId = doc.id;
+      showDocViewer();
+      $("dvName").textContent = doc.name;
+      dvSetStatus("loading " + doc.name + "…");
+      const format = (doc.source_format || "").toLowerCase();
+      if (format === "pdf") await loadPdfDoc(doc);
+      else await loadMarkdownDoc(doc);
+    }
+
+    function initDocSplitter() {
+      const splitter = $("docSplitter"), list = $("docList");
+      const MIN_H = 80, MAX_H = 520;
+      list.style.height = docListHeight + "px";
+      let dragging = false, startY = 0, startH = 0;
+      splitter.addEventListener("pointerdown", e => {
+        dragging = true; startY = e.clientY; startH = list.offsetHeight;
+        splitter.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      });
+      splitter.addEventListener("pointermove", e => {
+        if (!dragging) return;
+        docListHeight = Math.min(MAX_H, Math.max(MIN_H, startH + (e.clientY - startY)));
+        list.style.height = docListHeight + "px";
+      });
+      splitter.addEventListener("pointerup", e => {
+        dragging = false;
+        try { splitter.releasePointerCapture(e.pointerId); } catch (err) { }
+      });
+    }
+    async function uploadDocs(files) {
+      // Upload + commit to the KB. The orchestrator runs the pipeline as a
+      // background job (202 + job_id), so progress is tracked to completion
+      // and the doc list/count update from the job result.
+      if (!files || !files.length) return;
+      for (const f of files) {
+        $("kbStatus").textContent = "processing " + f.name + "…";
+        $("kbStatus").classList.remove("bad");
+        try {
+          const fd = new FormData(); fd.append("file", f, f.name);
+          const r = await fetch(orchHost() + "/docs/upload", { method: "POST", body: fd });
+          const d = await r.json();
+          if (!r.ok || d.error) throw new Error(d.error || ("HTTP " + r.status));
+          const result = await trackJobProgress(d.job_id,
+            text => { $("kbStatus").textContent = f.name + ": " + text; }, jobButtonText);
+          if (result && result.docs) docList = result.docs;
+          const v = result && result.validation && result.validation.stats;
+          const bits = [(result && result.chunks != null ? result.chunks : "?") + " chunks"];
+          if (v && v.warnings) bits.push(v.warnings + " warnings");
+          if (v && v.errors) bits.push(v.errors + " errors");
+          $("kbStatus").textContent = f.name + ": indexed (" + bits.join(", ") + ")";
+        } catch (e) { $("kbStatus").textContent = f.name + ": failed — " + e.message; $("kbStatus").classList.add("bad"); renderDocs(); return; }
+      }
+      renderDocs(); $("docsNote").textContent = docsCountText(); updateMonitor();
+    }
+    async function removeDoc(id) {
+      try { const r = await fetch(orchHost() + "/docs/" + id, { method: "DELETE" }); const d = await r.json(); docList = d.docs || []; } catch (e) { }
+      renderDocs(); $("docsNote").textContent = docsCountText(); updateMonitor();
+    }
+
+    /* ---------- document-processing diagnostics ----------
+       Everything below renders data the converter already computed
+       (document_converter/validation.py's `stats`/`findings`) — it never
+       recomputes or re-derives a metric the backend doesn't already report,
+       it only formats/groups/labels it. */
+
+    function kv(label, value) {
+      if (value === null || value === undefined || value === "") return "";
+      return '<div class="detail-kv"><span class="k">' + escapeHtml(label) + '</span>' +
+        '<span class="v">' + escapeHtml(String(value)) + '</span></div>';
+    }
+    function yesNo(v) { return v === true ? "yes" : v === false ? "no" : null; }
+
+    // Overall client-facing status — derived only from the backend's own
+    // error/warning counts and retrieval_ready flag (the backend remains the
+    // source of truth for success/failure; an ERROR does not automatically
+    // mean "failed" here, since retrieval_ready is what actually gates that).
+    function overallStatus(stats, retrievalReady) {
+      const errors = stats.errors || 0, warnings = stats.warnings || 0;
+      if (!retrievalReady) return { label: "Conversion failed", kind: "err" };
+      if (errors > 0) return { label: "Converted with errors", kind: "err" };
+      if (warnings > 0) return { label: "Converted with warnings", kind: "warn" };
+      return { label: "Converted successfully", kind: "ok" };
+    }
+    function pillHtml(label, kind) {
+      return '<span class="pill ' + kind + '">' + escapeHtml(label) + '</span>';
+    }
+
+    const SEVERITY_ORDER = ["ERROR", "WARNING", "FIXED", "INFO"];
+
+    function groupFindingsBySeverity(findings) {
+      const groups = {};
+      for (const f of (findings || [])) (groups[f.severity] = groups[f.severity] || []).push(f);
+      return SEVERITY_ORDER.filter(s => groups[s] && groups[s].length).map(s => [s, groups[s]]);
+    }
+    function renderFindingsSection(findings) {
+      if (!findings || !findings.length) {
+        return '<div class="muted-note">No conversion findings.</div>';
+      }
+      return groupFindingsBySeverity(findings).map(([sev, items]) =>
+        '<div class="finding-group"><h4 class="' + sev + '">' + sev + ' (' + items.length + ')</h4>' +
+        items.map(f =>
+          '<div class="finding ' + sev + '">' +
+          '<span class="fcode">' + escapeHtml(f.code) + '</span>' +
+          '<span class="fmsg">' + escapeHtml(f.message) + '</span>' +
+          (f.page != null ? '<span class="floc">page ' + escapeHtml(f.page) + '</span>' : '') +
+          (f.suggested_action ? '<div class="fsuggest">' + escapeHtml(f.suggested_action) + '</div>' : '') +
+          '</div>'
+        ).join("") +
+        '</div>'
+      ).join("");
+    }
+
+    // Builds the full "View Details" panel body from a normalized diagnostics
+    // object. `stats`/`findings` may be absent (an index entry written before
+    // this diagnostics detail was persisted) — shown as an honest "not
+    // recorded" note rather than a fabricated/empty-looking report.
+    function buildDiagnosticsHtml(diag) {
+      if (!diag.stats) {
+        return '<div class="muted-note">No detailed diagnostics were recorded for this document. ' +
+          'Edit its title or re-convert the source file to generate a fresh diagnostic report.</div>';
+      }
+      const s = diag.stats;
+      const headingBreakdown = s.headers
+        ? Object.entries(s.headers).filter(([, n]) => n > 0).map(([h, n]) => h.toUpperCase() + ":" + n).join("  ")
+        : null;
+
+      const documentSection =
+        '<div class="detail-section"><h3>Document</h3><div class="detail-grid">' +
+        kv("Source filename", diag.filename) +
+        kv("Detected title", diag.detectedTitle) +
+        kv("Final / current title", diag.finalTitle) +
+        kv("Title source", diag.titleSource) +
+        kv("File type", diag.fileType) +
+        kv("Pages processed", s.page_count) +
+        '</div></div>';
+
+      const extractionStatus = (diag.findings || []).some(f => f.code === "extraction_failed" && f.severity === "ERROR")
+        ? pillHtml("Extraction failed", "err")
+        : pillHtml("Extracted", "ok");
+      const mainTextStatus = diag.retrievalReady
+        ? pillHtml("Ready for retrieval", "ok")
+        : pillHtml("Not retrieval-ready", "err");
+
+      const extractionSection =
+        '<div class="detail-section"><h3>Extraction / Conversion</h3>' +
+        '<div class="status-line">' + extractionStatus + ' &nbsp; ' + mainTextStatus + '</div>' +
+        '<div class="detail-grid">' +
+        kv("OCR used", yesNo(diag.ocrUsed)) +
+        kv("Native-text pages", s.native_text_pages) +
+        kv("OCR pages", s.ocr_pages) +
+        kv("Failed pages", s.failed_pages) +
+        kv("Paragraphs extracted", s.paragraph_count) +
+        kv("Headings detected", s.heading_count) +
+        kv("Heading levels", headingBreakdown) +
+        kv("Document title valid", yesNo(s.document_title_valid)) +
+        '</div></div>';
+
+      const chunkingStatus = (s.chunk_count || 0) > 0
+        ? pillHtml("Chunked", "ok")
+        : pillHtml("No chunks generated", "err");
+      const chunkingSection =
+        '<div class="detail-section"><h3>Chunking</h3>' +
+        '<div class="status-line">' + chunkingStatus + '</div>' +
+        '<div class="detail-grid">' +
+        kv("Chunks generated", s.chunk_count) +
+        kv("Largest chunk", s.largest_chunk_words != null ? s.largest_chunk_words + " words / " +
+          s.largest_chunk_tokens + " tokens" : null) +
+        kv("Empty chunks", s.empty_chunk_count) +
+        kv("Forced fallback splits", s.forced_fallback_split_count) +
+        kv("Oversized blocks unresolved", s.oversized_atomic_block_count) +
+        kv("Chunks exceeding embedding limit", s.embedding_truncation_count) +
+        '</div></div>';
+
+      const findingsSection =
+        '<div class="detail-section"><h3>Findings</h3>' + renderFindingsSection(diag.findings) + '</div>';
+
+      return documentSection + extractionSection + chunkingSection + findingsSection;
+    }
+
+    // Toggles a details panel open/closed, rebuilding its content from
+    // `htmlBuilder()` (synchronous, data already in memory) every time it
+    // opens — used by the just-converted result cards, where a title edit
+    // can change what the panel should show between one open and the next.
+    function wireDetailsToggleSync(btn, panel, htmlBuilder) {
+      btn.addEventListener("click", () => {
+        const opening = panel.style.display === "none";
+        if (opening) panel.innerHTML = htmlBuilder();
+        panel.style.display = opening ? "" : "none";
+        btn.textContent = opening ? "Hide Details" : "View Details";
+      });
+    }
+
+    // Toggles `toggleEl` open/closed; `loader` (async) is called at most
+    // once, the first time it's opened, to lazily fetch/build its content
+    // into the separate `contentEl` sink — used by the KB doc list, which
+    // only has warnings/errors counts up front and fetches the rest (via
+    // GET /docs/{id}) on demand rather than carrying full diagnostics for
+    // every row up front.
+    function wireDetailsToggleAsync(btn, toggleEl, contentEl, loader) {
+      let loaded = false;
+      btn.addEventListener("click", async () => {
+        const opening = toggleEl.style.display === "none";
+        if (opening && !loaded) {
+          toggleEl.style.display = "";
+          contentEl.innerHTML = '<div class="detail-loading">loading details…</div>';
+          try {
+            await loader();
+            loaded = true;
+          } catch (e) {
+            contentEl.innerHTML = '<div class="detail-err">Could not load details — ' + escapeHtml(e.message) + '</div>';
+          }
+        } else {
+          toggleEl.style.display = opening ? "" : "none";
+        }
+        btn.textContent = toggleEl.style.display === "none" ? "View Details" : "Hide Details";
+      });
+    }
+
+    // Last path segment, extension included — keeps the detailed view's
+    // "source filename" a plain filename instead of the full on-disk path.
+    function basename(pathOrName) {
+      return String(pathOrName || "").split(/[\\/]/).pop();
+    }
+    // Filename stem without its extension, for the "use filename" action.
+    function filenameStem(pathOrName) {
+      const base = basename(pathOrName);
+      const dot = base.lastIndexOf(".");
+      return dot > 0 ? base.slice(0, dot) : base;
+    }
+
+    // Lazily fetches a knowledge-base document's full index payload (GET
+    // /docs/{id}) and renders it into the details panel — never re-runs the
+    // converter just to populate this view.
+    async function loadKbDetails(docId, contentEl) {
+      const r = await fetch(orchHost() + "/docs/" + docId);
+      const payload = await r.json();
+      if (!r.ok || payload.error) throw new Error(payload.error || ("HTTP " + r.status));
+      const doc = payload.document || {};
+      const pipelineMeta = payload.pipeline || {};
+      const validation = payload.validation || {};
+      const hasStats = validation.stats && Object.keys(validation.stats).length > 0;
+      contentEl.innerHTML = buildDiagnosticsHtml({
+        filename: basename(doc.source_path),
+        detectedTitle: null,
+        finalTitle: doc.title,
+        titleSource: doc.title_source,
+        fileType: pipelineMeta.extractor,
+        ocrUsed: pipelineMeta.ocr_used,
+        stats: hasStats ? validation.stats : null,
+        findings: validation.findings || [],
+        retrievalReady: validation.retrieval_ready,
+      });
+    }
+
+    /* ---------- per-document title override ---------- */
+    async function setDocTitle(id, title) {
+      try {
+        const r = await fetch(orchHost() + "/docs/" + id + "/title", {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title }),
+        });
+        const d = await r.json();
+        if (!r.ok || d.error) throw new Error(d.error || ("HTTP " + r.status));
+        docList = d.docs || docList;
+        $("kbStatus").classList.remove("bad");
+      } catch (e) {
+        $("kbStatus").textContent = "title update failed — " + e.message;
+        $("kbStatus").classList.add("bad");
+      }
+      renderDocs();
+    }
+    async function clearDocTitle(id) {
+      try {
+        const r = await fetch(orchHost() + "/docs/" + id + "/title", { method: "DELETE" });
+        const d = await r.json();
+        if (!r.ok || d.error) throw new Error(d.error || ("HTTP " + r.status));
+        docList = d.docs || docList;
+        $("kbStatus").classList.remove("bad");
+      } catch (e) {
+        $("kbStatus").textContent = "removing title override failed — " + e.message;
+        $("kbStatus").classList.add("bad");
+      }
+      renderDocs();
+    }
+
+    // Builds the editable name cell for one KB doc row: a view mode (title
+    // text + "edit" link + an "override"/"restore automatic" pair when this
+    // document currently has a manual override) and an edit mode (text
+    // input + "use filename" + save/cancel), toggled in place.
+    function buildDocNameCell(d) {
+      const cell = document.createElement("span");
+      cell.className = "dname-cell";
+      cell.title = d.source_path || d.name;
+      cell.addEventListener("click", e => e.stopPropagation());
+
+      function showView() {
+        cell.innerHTML = "";
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "dname";
+        nameSpan.textContent = d.name;
+        const editBtn = document.createElement("button");
+        editBtn.className = "link-btn dedit"; editBtn.type = "button"; editBtn.textContent = "edit";
+        editBtn.addEventListener("click", showEdit);
+        cell.append(nameSpan, editBtn);
+        if (d.has_title_override) {
+          const badge = document.createElement("span");
+          badge.className = "title-badge"; badge.textContent = "override";
+          const clearBtn = document.createElement("button");
+          clearBtn.className = "link-btn dedit"; clearBtn.type = "button"; clearBtn.textContent = "restore automatic";
+          clearBtn.addEventListener("click", () => clearDocTitle(d.id));
+          cell.append(badge, clearBtn);
+        }
+      }
+
+      function showEdit() {
+        cell.innerHTML = "";
+        const input = document.createElement("input");
+        input.type = "text"; input.value = d.name; input.className = "dtitle-input";
+        const useFileBtn = document.createElement("button");
+        useFileBtn.className = "tiny ghost"; useFileBtn.type = "button"; useFileBtn.textContent = "use filename";
+        useFileBtn.addEventListener("click", () => { input.value = filenameStem(d.source_path); input.focus(); });
+        const saveBtn = document.createElement("button");
+        saveBtn.className = "tiny primary"; saveBtn.type = "button"; saveBtn.textContent = "save";
+        saveBtn.addEventListener("click", () => {
+          const t = input.value.trim();
+          if (t) setDocTitle(d.id, t);
+        });
+        const cancelBtn = document.createElement("button");
+        cancelBtn.className = "tiny ghost"; cancelBtn.type = "button"; cancelBtn.textContent = "cancel";
+        cancelBtn.addEventListener("click", showView);
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") saveBtn.click();
+          if (e.key === "Escape") showView();
+        });
+        cell.append(input, useFileBtn, saveBtn, cancelBtn);
+        input.focus(); input.select();
+      }
+
+      showView();
+      return cell;
+    }
+
+    /* ---------- job progress (/docs/preview and /docs/upload return
+       202+job_id immediately; progress is streamed over SSE via
+       /docs/jobs/{id}/stream, falling back to polling GET /docs/jobs/{id}
+       every 2s if the stream drops) ---------- */
+
+    const JOB_STAGE_LABELS = {
+      extracting: "extracting page", scanning_images: "scanning images page",
+      detecting_tables: "detecting tables page",
+      normalizing: "normalizing", repairing_running_headers: "repairing running headers",
+      structuring: "structuring", repairing_headings: "repairing heading chains",
+      auditing_heading_siblings: "auditing heading siblings",
+      auditing_section_numbering: "auditing section numbering",
+      repairing_paragraph_continuity: "repairing paragraph continuity",
+      chunking: "chunking",
+      validating: "validating", rendering: "rendering markdown",
+      visual_analysis: "analyzing visual", embedding: "embedding",
+      writing_index: "writing index", done: "done",
+    };
+
+    function jobStageText(p) {
+      const stage = p.stage || (p.state === "queued" ? "waiting for GPU" : "working");
+      const label = JOB_STAGE_LABELS[stage] || stage;
+      if (p.current != null && p.total) {
+        const unit = stage === "embedding" ? " chunks" : "";
+        return label + " " + p.current.toLocaleString() + " / " + p.total.toLocaleString() + unit;
+      }
+      return label;
+    }
+    function jobStagePercent(p) {
+      if (p.current != null && p.total) return Math.min(100, Math.round((p.current / p.total) * 100));
+      return null;
+    }
+    function jobButtonText(p) {
+      const stage = p.stage || (p.state === "queued" ? "waiting for GPU" : "working");
+      const pct = jobStagePercent(p);
+      return (JOB_STAGE_LABELS[stage] || stage) + (pct != null ? " " + pct + "%" : "…");
+    }
+
+    // Streams one job's progress via EventSource; falls back to polling if
+    // the stream errors out instead of giving up on the job. `onProgress`
+    // is called with {state, stage, current, total} on every change;
+    // exactly one of `onDone(result)` / `onError(err)` fires once, at the
+    // terminal state, where `err` carries `.message` and `.validation`.
+    function watchJob(jobId, onProgress, onDone, onError) {
+      let closed = false;
+      let pollTimer = null;
+      let es = null;
+
+      function finishDone(result) {
+        if (closed) return;
+        closed = true;
+        if (pollTimer) clearInterval(pollTimer);
+        if (es) es.close();
+        onDone(result);
+      }
+      function finishError(message, validation) {
+        if (closed) return;
+        closed = true;
+        if (pollTimer) clearInterval(pollTimer);
+        if (es) es.close();
+        const err = new Error(message || "job failed");
+        err.validation = validation;
+        onError(err);
+      }
+      function startPolling() {
+        if (pollTimer || closed) return;
+        pollTimer = setInterval(async () => {
+          try {
+            const r = await fetch(orchHost() + "/docs/jobs/" + jobId);
+            const job = await r.json();
+            if (!r.ok) { finishError(job.error || ("HTTP " + r.status)); return; }
+            if (job.state === "succeeded") { finishDone(job.result); return; }
+            if (job.state === "failed") { finishError(job.error, job.validation); return; }
+            onProgress({
+              state: job.state, stage: job.stage, current: job.current, total: job.total,
+              remaining_seconds: job.remaining_seconds, eta_lower_bound: job.eta_lower_bound,
+            });
+          } catch (e) { /* transient — keep polling */ }
+        }, 2000);
+      }
+
+      try {
+        es = new EventSource(orchHost() + "/docs/jobs/" + jobId + "/stream");
+        es.addEventListener("progress", (ev) => { if (!closed) onProgress(JSON.parse(ev.data)); });
+        es.addEventListener("done", (ev) => { finishDone(JSON.parse(ev.data).result); });
+        es.addEventListener("error", (ev) => {
+          // EventSource fires this both for our own named "error" SSE event
+          // (has ev.data) and for a plain connection failure (no data) —
+          // only the latter should fall back to polling.
+          if (ev.data) {
+            try {
+              const d = JSON.parse(ev.data);
+              finishError(d.error, d.validation);
+              return;
+            } catch (e) { /* fall through to polling below */ }
+          }
+          startPolling();
+        });
+      } catch (e) {
+        startPolling();
+      }
+    }
+
+    // Wraps watchJob() in a Promise and keeps a per-second ticking status
+    // line next to the stage text — a long stage with a ticking display
+    // reads as working; one with no ticking reads as hung. See the eta /
+    // elapsed-suffix logic; `eta_lower_bound` marks every remaining-time
+    // display for the rest of the job once true.
+    function trackJobProgress(jobId, renderLine, textForProgress) {
+      const startedAt = Date.now();
+      let label = "queued";
+      let remainingAt = null;       // remaining_seconds as of remainingAtTime, or null (no estimate yet)
+      let remainingAtTime = startedAt;
+      let etaLowerBound = false;
+      const tick = () => {
+        let suffix;
+        if (remainingAt != null) {
+          const liveRemaining = Math.max(0, remainingAt - (Date.now() - remainingAtTime) / 1000);
+          const mins = Math.round(liveRemaining / 60);
+          const left = mins >= 1 ? ("~" + mins.toLocaleString() + " min left") : "<1 min left";
+          suffix = etaLowerBound ? (left + ", at least") : left;
+        } else {
+          suffix = Math.round((Date.now() - startedAt) / 1000) + "s";
+        }
+        renderLine(label + " (" + suffix + ")");
+      };
+      const timer = setInterval(tick, 1000);
+      return new Promise((resolve, reject) => {
+        watchJob(jobId, (p) => {
+          label = textForProgress(p);
+          remainingAt = (p.remaining_seconds != null) ? p.remaining_seconds : null;
+          remainingAtTime = Date.now();
+          etaLowerBound = !!p.eta_lower_bound;
+          tick();
+        },
+          (result) => { clearInterval(timer); resolve(result); },
+          (err) => { clearInterval(timer); reject(err); });
+      });
+    }
+
+    /* ---------- convert to markdown (dry-run preview, nothing indexed) ---------- */
+    function convertLogLine(text, cls) {
+      const row = document.createElement("div");
+      if (cls) row.className = cls;
+      row.textContent = text;
+      $("convertLog").prepend(row);
+      while ($("convertLog").children.length > 8) $("convertLog").removeChild($("convertLog").lastChild);
+      return row;
+    }
+
+    // Opens the converted markdown as plain text in a new browser window/tab,
+    // via a Blob object URL (works from a file:// page, no server round trip).
+    function openMarkdownWindow(markdown, filename) {
+      const blob = new Blob([markdown], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, "_blank");
+      if (!win) {
+        alert("Pop-up blocked — allow pop-ups for this page to view converted markdown in a new window.");
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+
+    // Same view/edit toggle as buildDocNameCell (KB doc rows), but purely
+    // local: nothing has been indexed yet, so "save" just remembers the
+    // chosen title (via `onChange`) for the eventual "commit to KB" click
+    // to send along as `title_override`, rather than calling any API.
+    function buildPreviewTitleRow(container, initialTitle, file, onChange) {
+      let current = initialTitle;
+      function showView() {
+        container.innerHTML = "";
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "rname"; nameSpan.textContent = current;
+        const editBtn = document.createElement("button");
+        editBtn.className = "link-btn"; editBtn.type = "button"; editBtn.textContent = "edit";
+        editBtn.addEventListener("click", showEdit);
+        container.append(nameSpan, editBtn);
+      }
+      function showEdit() {
+        container.innerHTML = "";
+        const editRow = document.createElement("div");
+        editRow.className = "title-edit";
+        const input = document.createElement("input");
+        input.type = "text"; input.value = current;
+        const useFileBtn = document.createElement("button");
+        useFileBtn.className = "tiny ghost"; useFileBtn.type = "button"; useFileBtn.textContent = "use filename";
+        useFileBtn.addEventListener("click", () => { input.value = filenameStem(file.name); input.focus(); });
+        const saveBtn = document.createElement("button");
+        saveBtn.className = "tiny primary"; saveBtn.type = "button"; saveBtn.textContent = "save";
+        saveBtn.addEventListener("click", () => {
+          const t = input.value.trim();
+          if (t) { current = t; onChange(t); }
+          showView();
+        });
+        const cancelBtn = document.createElement("button");
+        cancelBtn.className = "tiny ghost"; cancelBtn.type = "button"; cancelBtn.textContent = "cancel";
+        cancelBtn.addEventListener("click", showView);
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") saveBtn.click();
+          if (e.key === "Escape") showView();
+        });
+        editRow.append(input, useFileBtn, saveBtn, cancelBtn);
+        container.appendChild(editRow);
+        input.focus(); input.select();
+      }
+      showView();
+    }
+
+    function renderConvertResult(file, data) {
+      const v = data.validation || {};
+      const stats = v.stats || {};
+      const findings = v.findings || [];
+      const errCls = stats.errors ? "err" : "ok";
+      const warnCls = stats.warnings ? "warn" : "";
+      const status = overallStatus(stats, v.retrieval_ready);
+      // Only sent as `title_override` on "commit to KB" if the user actually
+      // edits+saves the title below — the automatic resolver still applies
+      // untouched otherwise.
+      let titleOverride = null;
+
+      const card = document.createElement("div");
+      card.className = "result card";
+      card.innerHTML =
+        '<div class="title-row" data-role="title-row"></div>' +
+        '<div class="rmeta">' + escapeHtml(file.name) + ' → markdown</div>' +
+        '<div class="status-line" data-role="status">' + pillHtml(status.label, status.kind) +
+        ' &nbsp; <span data-role="index-pill">' + pillHtml("Not yet indexed", "neutral") + '</span></div>' +
+        '<div class="stat-row">' +
+        '<div class="stat"><span class="n">' + (data.chunks ? data.chunks.length : 0) + '</span><span class="lbl">chunks</span></div>' +
+        '<div class="stat"><span class="n">' + (stats.page_count != null ? stats.page_count : "—") + '</span><span class="lbl">pages</span></div>' +
+        '<div class="stat"><span class="n">' + (stats.heading_count != null ? stats.heading_count : "—") + '</span><span class="lbl">sections</span></div>' +
+        '<div class="stat ' + warnCls + '"><span class="n">' + (stats.warnings || 0) + '</span><span class="lbl">warnings</span></div>' +
+        '<div class="stat ' + errCls + '"><span class="n">' + (stats.errors || 0) + '</span><span class="lbl">errors</span></div>' +
+        '</div>' +
+        '<div class="actions">' +
+        '<button class="primary" data-act="view">Open markdown in new window</button>' +
+        '<button class="ghost" data-act="index">commit to KB</button>' +
+        '<button class="details-toggle" data-act="toggle-details" type="button">View Details</button>' +
+        '</div>' +
+        '<div class="details-panel" data-role="details-panel" style="display:none"></div>';
+
+      buildPreviewTitleRow(card.querySelector('[data-role="title-row"]'), data.title || file.name, file, (t) => { titleOverride = t; });
+
+      card.querySelector('[data-act="view"]').addEventListener("click", () => openMarkdownWindow(data.markdown, file.name));
+
+      const indexBtn = card.querySelector('[data-act="index"]');
+      indexBtn.addEventListener("click", async () => {
+        indexBtn.disabled = true;
+        indexBtn.textContent = "indexing…";
+        try {
+          const fd = new FormData(); fd.append("file", file, file.name);
+          if (titleOverride) fd.append("title_override", titleOverride);
+          const r = await fetch(orchHost() + "/docs/upload", { method: "POST", body: fd });
+          const d = await r.json();
+          if (!r.ok || d.error) throw new Error(d.error || ("HTTP " + r.status));
+          const result = await trackJobProgress(d.job_id, (text) => { indexBtn.textContent = text; }, jobButtonText);
+          if (result && result.docs) docList = result.docs;
+          indexBtn.textContent = "added ✓";
+          card.querySelector('[data-role="index-pill"]').innerHTML = pillHtml("Indexed", "ok");
+          renderDocs(); $("docsNote").textContent = docsCountText(); updateMonitor();
+        } catch (e) {
+          indexBtn.disabled = false;
+          indexBtn.textContent = "failed — retry";
+          convertLogLine(file.name + ": index failed — " + e.message, "bad");
+        }
+      });
+
+      const detailsPanel = card.querySelector('[data-role="details-panel"]');
+      wireDetailsToggleSync(card.querySelector('[data-act="toggle-details"]'), detailsPanel, () => buildDiagnosticsHtml({
+        filename: file.name,
+        detectedTitle: data.title || null,
+        finalTitle: titleOverride || data.title || null,
+        titleSource: titleOverride ? "pending override (not yet saved)" : (data.title_source || null),
+        fileType: data.source_format || null,
+        ocrUsed: data.ocr_used,
+        stats: stats,
+        findings: findings,
+        retrievalReady: v.retrieval_ready,
+      }));
+
+      $("convertResults").prepend(card);
+    }
+
+    async function convertFiles(files) {
+      if (!files || !files.length) return;
+      for (const f of files) {
+        const logRow = convertLogLine("converting " + f.name + "…");
+        try {
+          const fd = new FormData(); fd.append("file", f, f.name);
+          const r = await fetch(orchHost() + "/docs/preview", { method: "POST", body: fd });
+          const d = await r.json();
+          if (!r.ok || d.error) throw new Error(d.error || ("HTTP " + r.status));
+          const result = await trackJobProgress(d.job_id, (text) => { logRow.textContent = f.name + ": " + text; }, jobStageText);
+          logRow.textContent = f.name + ": converted — " + (result.chunks ? result.chunks.length : 0) + " chunks";
+          renderConvertResult(f, result);
+        } catch (e) {
+          logRow.className = "bad";
+          logRow.textContent = f.name + ": conversion failed — " + e.message;
+        }
+      }
+    }
+
+    async function rescanDocs() {
+      convertLogLine("rescanning docs/ folder…");
+      try {
+        const r = await fetch(orchHost() + "/ingest", { method: "POST" });
+        const d = await r.json();
+        if (!r.ok || d.error) throw new Error(d.error || "rescan failed");
+        const rep = d.report || {};
+        convertLogLine("rescan done: " + (rep.new || []).length + " indexed, " + (rep.skipped || []).length + " unchanged, " + (rep.failed || []).length + " failed",
+          (rep.failed && rep.failed.length) ? "bad" : "");
+        docList = d.docs || docList;
+        renderDocs(); $("docsNote").textContent = docsCountText(); updateMonitor();
+      } catch (e) { convertLogLine("rescan failed — " + e.message, "bad"); }
+    }
+
+    /* ---------- token / session monitor ---------- */
+    function ctxSize() { return parseInt($("ctxSelect").value, 10) || 32768; }
+    function estTokens(arr) { let c = 0; for (const m of arr) c += (m.content || "").length; return Math.ceil(c / 4); }
+    function fmtK(n) { return n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(n); }
+    function estimateMessages() {
+      const out = []; const sys = $("sysPrompt").value.trim();
+      if (sys) out.push({ content: sys });
+      const pc = buildProjectContext(); if (pc) out.push({ content: pc });
+      for (const m of (currentThread && currentThread.messages) || []) out.push({ content: m.content });
+      return out;
+    }
+    function updateMonitor() {
+      let used = estTokens(estimateMessages());
+      if (kbActive()) used += kbK() * 230;
+      const warn = parseInt($("warnTok").value, 10) || 5000;
+      const dump = parseInt($("dumpTok").value, 10) || 6500;
+      const max = ctxSize();
+      $("tokText").textContent = "~" + fmtK(used) + " tok" + (kbActive() ? " +kb" : "");
+      const pct = Math.min(100, Math.round(used / max * 100));
+      $("pctText").textContent = pct + "%";
+      $("monFill").style.width = pct + "%";
+      const z = $("zone"); const act = $("monAction"); const rb = $("refreshBtn");
+      let zone, color, action, urge = false;
+      if (used >= dump) { zone = "DUMB ZONE"; color = "dumb"; action = "recommend refresh — summarize to project state & start fresh"; urge = true; }
+      else if (used >= warn) { zone = "WARNING"; color = "warning"; action = "approaching limit — wrap up soon"; }
+      else { zone = "SMART"; color = "smart"; action = ""; }
+      z.textContent = zone; z.className = "zone " + color;
+      act.textContent = action; act.classList.toggle("urge", urge);
+      rb.classList.toggle("urge", urge);
+      const hasMessages = !!(currentThread && currentThread.messages && currentThread.messages.length);
+      if (urge && $("autorefresh").checked && !streaming && !ending && hasMessages) { endSession("auto"); }
+    }
+
+    /* ---------- session lifecycle (durable project-state summarization) ---------- */
+    function showSessionNote(summary, archived) {
+      $("empty").style.display = "none";
+      const el = document.createElement("div"); el.className = "note";
+      el.innerHTML = '<b>session refreshed</b> — archived as ' + escapeHtml(archived || "") +
+        ', folded into project state, chat cleared. The next message starts fresh with only your system prompt + project state.' +
+        (summary ? '<details><summary>view session summary</summary><div class="sum">' + escapeHtml(summary) + '</div></details>' : "");
+      $("wrap").appendChild(el); scrollDown(true);
+    }
+    async function endSession(reason) {
+      const msgs = (currentThread && currentThread.messages) || [];
+      if (streaming || ending || !msgs.length) return;
+      ending = true;
+      const rb = $("refreshBtn"); const pe = $("pEnd");
+      rb.disabled = true; if (pe) pe.disabled = true; rb.textContent = "summarizing…";
+      try {
+        const r = await fetch(orchHost() + "/session/end", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: msgs.map(m => ({ role: m.role, content: m.content })),
+            model: $("modelSelect").value, num_ctx: ctxSize()
+          })
+        });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const d = await r.json();
+        projectState = d.state; renderProjectPanel(); setOrch(true, "");
+        currentThreadId = null; currentThread = null; $("threadTitleInput").value = "";
+        sourcesOpen = false; sourcesDismissed = false;
+        clearFeed();
+        showSessionNote(d.summary, d.archived);
+        renderSourcesPanel("idle");
+        refreshThreadList();
+        updateMonitor();
+      } catch (e) {
+        const n = $("orchNote"); n.textContent = "session-end failed: " + e.message + " (orchestrator running?)"; n.classList.add("bad");
+        switchMode("settings");
+      } finally {
+        ending = false; rb.disabled = false; if (pe) pe.disabled = false; rb.textContent = "new session";
+      }
+    }
+
+    /* ---------- send / SSE stream ---------- */
+    async function send() {
+      if (streaming) return;
+      const text = $("input").value.trim(); if (!text) return;
+      const model = $("modelSelect").value;
+      if (!model || model === "no models" || model === "loading…") return;
+      $("input").value = ""; autosize();
+
+      if (!currentThreadId) {
+        const t = await createThread(text.slice(0, 48));
+        if (!t) { showBanner(); return; }
+        currentThreadId = t.id; currentThread = t;
+        $("threadTitleInput").value = t.title;
+        refreshThreadList();
+      }
+
+      userScrolledUp = false;
+      const userEl = addMessage("user"); userEl.querySelector(".content").textContent = text;
+      const botEl = addMessage("bot"); const contentEl = botEl.querySelector(".content");
+      if (activeMessageEl) { activeMessageEl.classList.remove("active"); activeMessageEl = null; }
+
+      const useKb = kbActive();
+      renderSourcesPanel(useKb ? "pending" : "off");
+
+      setStreaming(true); controller = new AbortController(); const t0 = performance.now();
+      let raw = "";
+
+      const body = {
+        thread_id: currentThreadId, model, text,
+        system_prompt: $("sysPrompt").value.trim(),
+        project_context: buildProjectContext(),
+        num_ctx: ctxSize(), use_kb: useKb, kb_k: kbK(),
+      };
+
+      try {
+        const r = await fetch(orchHost() + "/chat/stream", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body), signal: controller.signal
+        });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = "";
+        while (true) {
+          const { done, value } = await reader.read(); if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const frames = buf.split("\n\n"); buf = frames.pop();
+          for (const frame of frames) {
+            if (!frame.trim()) continue;
+            let ev = "message", data = null;
+            for (const line of frame.split("\n")) {
+              if (line.startsWith("event:")) ev = line.slice(6).trim();
+              else if (line.startsWith("data:")) { try { data = JSON.parse(line.slice(5).trim()); } catch (e) { } }
+            }
+            if (data == null) continue;
+            if (ev === "status") {
+              renderStatusLine(contentEl, data.state, data.model);
+            } else if (ev === "sources") {
+              const srcs = data.sources || [];
+              renderSourcesPanel(srcs.length ? "list" : "empty", srcs);
+              // fresh retrieval: surface the panel once (unless the user
+              // already dismissed it for this conversation)
+              if (srcs.length && !sourcesDismissed) { sourcesOpen = true; updateSourcesUI(); }
+            } else if (ev === "token") {
+              raw += data.text; renderBot(botEl, raw, true); scrollDown();
+            } else if (ev === "error") {
+              throw new Error(data.message || "generation failed");
+            }
+          }
+        }
+        renderBot(botEl, raw, false);
+      } catch (err) {
+        if (err.name === "AbortError") { renderBot(botEl, raw, false); botEl.querySelector(".meta").textContent = "stopped"; }
+        else { contentEl.innerHTML = '<span style="color:var(--danger-text)">Error: ' + escapeHtml(err.message) + '</span>'; }
+      } finally {
+        setStreaming(false); controller = null;
+        await reloadCurrentThread();
+        updateMonitor();
+      }
+    }
+
+    function setStreaming(on) {
+      streaming = on; const b = $("sendBtn");
+      if (on) { b.textContent = "Stop"; b.classList.add("stop"); b.disabled = false; }
+      else { b.textContent = "Send"; b.classList.remove("stop"); refreshSend(); }
+    }
+    function refreshSend() {
+      if (streaming) return;
+      const m = $("modelSelect").value;
+      $("sendBtn").disabled = !($("input").value.trim() && m && m !== "no models" && m !== "loading…");
+    }
+    function autosize() { const t = $("input"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 200) + "px"; }
+
+    /* ---------- voice ---------- */
+    let mediaStream = null, recorder = null, chunks = [], recording = false, transcribing = false;
+    let recStart = 0, recTimer = null;
+    const micOK = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && typeof MediaRecorder !== "undefined";
+    if (!micOK) { $("micBtn").disabled = true; $("micBtn").title = "Voice needs a secure context (localhost or https)"; }
+
+    async function acquireStream() {
+      const base = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 };
+      return await navigator.mediaDevices.getUserMedia({ audio: base });
+    }
+
+    async function startRecording() {
+      if (recording || transcribing) return;
+      try {
+        mediaStream = await acquireStream();
+      } catch (err) {
+        $("recbar").classList.add("show");
+        setRecHint("mic blocked: " + (err.message || err.name), true);
+        setTimeout(() => $("recbar").classList.remove("show"), 4000);
+        return;
+      }
+      chunks = [];
+      const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"].find(m => MediaRecorder.isTypeSupported(m)) || "";
+      recorder = mime ? new MediaRecorder(mediaStream, { mimeType: mime }) : new MediaRecorder(mediaStream);
+      recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+      recorder.onstop = onRecStop; recorder.start(1000);
+      recording = true;
+      $("micBtn").classList.add("recording"); $("micBtn").title = "Stop recording";
+      $("recHint").classList.remove("err"); setRecHint("recording — click the mic again to stop"); $("recbar").classList.add("show");
+      recStart = performance.now(); recTimer = setInterval(updateRecTime, 250);
+    }
+    function stopRecording() {
+      if (!recording) return; recording = false;
+      $("micBtn").classList.remove("recording"); $("micBtn").title = "Dictate — records from your mic";
+      clearInterval(recTimer); try { recorder.stop(); } catch (e) { }
+    }
+    async function onRecStop() {
+      if (mediaStream) { try { mediaStream.getTracks().forEach(t => t.stop()); } catch (e) { } mediaStream = null; }
+      const blob = new Blob(chunks, { type: (recorder && recorder.mimeType) || "audio/webm" }); chunks = [];
+      if (blob.size < 1500) {
+        setRecHint("no audio captured — check your mic", true);
+        setTimeout(() => $("recbar").classList.remove("show"), 5000);
+        return;
+      }
+      transcribing = true; $("micBtn").disabled = true; setRecHint("transcribing…");
+      try {
+        const fd = new FormData(); fd.append("file", blob, "speech.webm");
+        const r = await fetch(whisperHost() + "/transcribe", { method: "POST", body: fd });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const data = await r.json(); insertTranscript((data.text || "").trim()); $("recbar").classList.remove("show");
+      } catch (err) { setRecHint("STT offline at " + whisperHost() + " — start whisper_server.py", true); setTimeout(() => $("recbar").classList.remove("show"), 5000); }
+      finally { transcribing = false; if (micOK) $("micBtn").disabled = false; }
+    }
+    function insertTranscript(text) {
+      if (!text) return; const t = $("input"); const cur = t.value.trim();
+      t.value = cur ? (cur + " " + text) : text; autosize(); refreshSend(); t.focus();
+    }
+    function updateRecTime() { const s = Math.floor((performance.now() - recStart) / 1000); $("recTime").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+    function setRecHint(t, err) { const h = $("recHint"); h.textContent = t; h.classList.toggle("err", !!err); }
+
+    /* ---------- presets ---------- */
+    const PRESETS = {
+      terse: "You are a terse senior Linux sysadmin. Give exact commands and say which directory to run them in. No preamble, no filler. If you're unsure, say so instead of guessing.",
+      explain: "Explain thoroughly. Walk through the reasoning step by step, define jargon the first time it appears, and call out trade-offs and edge cases. Prefer depth over brevity.",
+      code: "Respond with code only. No prose explanation unless I explicitly ask. Brief inline comments where needed. Assume a Linux (Pop!_OS) environment.",
+      coach: "You are an interview coach for IT/sysadmin roles. When I give an answer, keep feedback tight: (1) name what's genuinely strong, (2) cut anything too exhaustive or out of order — flag steps that belong in a later 'if symptoms appear' phase rather than first, (3) add the obvious things experienced admins check immediately that I missed, (4) correct any technically wrong commands, (5) end with a rewritten model answer that takes 2-3 minutes spoken and sounds natural. Prefer realistic interview length over completeness.",
+      clear: ""
+    };
+
+    /* ---------- wiring + persistence ---------- */
+    $("input").addEventListener("input", () => { autosize(); refreshSend(); });
+    $("input").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
+    $("sendBtn").addEventListener("click", () => { streaming ? (controller && controller.abort()) : send(); });
+    $("clearBtn").addEventListener("click", newChat);
+    $("modelSelect").addEventListener("change", () => { store.set("model", $("modelSelect").value); refreshSend(); });
+    $("orchInput").addEventListener("change", () => { store.set("orchHost", $("orchInput").value); loadModels(); fetchState(); fetchDocs(); refreshThreadList(); });
+    $("whisperInput").addEventListener("change", () => store.set("whisperHost", $("whisperInput").value));
+    $("crawlerInput").addEventListener("change", () => { store.set("crawlerHost", $("crawlerInput").value); if (activeModePanel() === "crawler") loadCrawler(); });
+    $("autostop").addEventListener("change", () => store.set("autostop", $("autostop").checked ? "1" : "0"));
+
+    let sysTimer = null;
+    $("sysPrompt").addEventListener("input", () => {
+      $("sysState").textContent = "…"; clearTimeout(sysTimer);
+      sysTimer = setTimeout(() => { store.set("sysPrompt", $("sysPrompt").value); $("sysState").textContent = "saved"; updateMonitor(); }, 300);
+    });
+    document.querySelectorAll(".preset").forEach(b => b.addEventListener("click", () => {
+      $("sysPrompt").value = PRESETS[b.dataset.p] || ""; store.set("sysPrompt", $("sysPrompt").value); $("sysState").textContent = "saved"; $("sysPrompt").focus(); updateMonitor();
+    }));
+
+    $("pSave").addEventListener("click", saveState);
+    $("pEnd").addEventListener("click", () => endSession("manual"));
+    $("refreshBtn").addEventListener("click", () => endSession("manual"));
+    ["ctxSelect", "warnTok", "dumpTok"].forEach(id => $(id).addEventListener("change", () => {
+      store.set(id, $(id).value); updateMonitor();
+    }));
+    $("autorefresh").addEventListener("change", () => { store.set("autorefresh", $("autorefresh").checked ? "1" : "0"); updateMonitor(); });
+
+    $("micBtn").addEventListener("click", () => { recording ? stopRecording() : startRecording(); });
+    window.addEventListener("beforeunload", () => { if (mediaStream) { try { mediaStream.getTracks().forEach(t => t.stop()); } catch (e) { } } });
+
+    $("dropzone").addEventListener("click", () => $("docFile").click());
+    $("docFile").addEventListener("change", e => { uploadDocs(e.target.files); e.target.value = ""; });
+    $("dropzone").addEventListener("dragover", e => { e.preventDefault(); $("dropzone").classList.add("drag"); });
+    $("dropzone").addEventListener("dragleave", () => $("dropzone").classList.remove("drag"));
+    $("dropzone").addEventListener("drop", e => { e.preventDefault(); $("dropzone").classList.remove("drag"); uploadDocs(e.dataTransfer.files); });
+    $("convertDropzone").addEventListener("click", () => $("convertFile").click());
+    $("convertFile").addEventListener("change", e => { convertFiles(e.target.files); e.target.value = ""; });
+    $("convertDropzone").addEventListener("dragover", e => { e.preventDefault(); $("convertDropzone").classList.add("drag"); });
+    $("convertDropzone").addEventListener("dragleave", () => $("convertDropzone").classList.remove("drag"));
+    $("convertDropzone").addEventListener("drop", e => { e.preventDefault(); $("convertDropzone").classList.remove("drag"); convertFiles(e.dataTransfer.files); });
+    $("rescanBtn").addEventListener("click", rescanDocs);
+    $("docsRefreshBtn").addEventListener("click", fetchDocs);
+    $("useKB").addEventListener("change", () => { store.set("useKB", $("useKB").checked ? "1" : "0"); updateMonitor(); });
+    $("kbK").addEventListener("change", () => { store.set("kbK", $("kbK").value); updateMonitor(); });
+    $("dvClear").addEventListener("click", clearDocSelection);
+    initDocSplitter();
+
+    /* ---------- Job tab ---------- */
+    // The four-section form (description / build checklist / system prompt /
+    // validation) submits to POST /jobs; the runner (orchestrator's
+    // job_runner) drives the chat model. Live progress is polled from
+    // GET /jobs/{id} -- the snapshot carries the full stage/item state, the
+    // event feed, produced files, and (at the end) the validation report.
+    let jobSelectedId = null;
+    let jobPollTimer = null;
+
+    function jobStatusPillClass(status) {
+      if (status === "complete") return "pill ok";
+      if (status === "failed" || status === "error") return "pill err";
+      if (status === "running" || status === "validating") return "pill warn";
+      return "pill neutral";
+    }
+
+    function stopJobPoll() {
+      if (jobPollTimer) { clearInterval(jobPollTimer); jobPollTimer = null; }
+    }
+
+    async function loadJobTab() {
+      try {
+        const r = await fetch(orchHost() + "/jobs");
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const data = await r.json();
+        renderJobList(data.jobs || []);
+        // reopen a running job automatically so a page reload reattaches to it
+        const active = (data.jobs || []).find(j => j.status === "running" || j.status === "validating");
+        if (jobSelectedId) { openJob(jobSelectedId); }
+        else if (active) { openJob(active.id); }
+      } catch (err) {
+        $("jobList").innerHTML = '<span class="orchnote bad">orchestrator offline</span>';
+      }
+    }
+
+    function renderJobList(jobs) {
+      const el = $("jobList"); el.innerHTML = "";
+      if (!jobs.length) {
+        el.innerHTML = '<span class="orchnote">no jobs yet — describe one below</span>';
+        return;
+      }
+      for (const j of jobs) {
+        const row = document.createElement("div");
+        row.className = "doc-row job-row";
+        const label = document.createElement("span");
+        label.className = "job-row-label";
+        label.textContent = j.title;
+        const meta = document.createElement("span");
+        meta.className = "orchnote";
+        meta.textContent = ` ${j.items_done}/${j.items_total} items · ${j.created_at}`;
+        const pill = document.createElement("span");
+        pill.className = jobStatusPillClass(j.status);
+        pill.textContent = j.status;
+        const del = document.createElement("button");
+        del.className = "drm"; del.type = "button"; del.textContent = "✕"; del.title = "Delete job";
+        del.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          await fetch(orchHost() + "/jobs/" + j.id, { method: "DELETE" });
+          if (jobSelectedId === j.id) backToJobForm();
+          loadJobTab();
+        });
+        label.appendChild(meta);
+        row.appendChild(label); row.appendChild(pill); row.appendChild(del);
+        row.addEventListener("click", () => openJob(j.id));
+        el.appendChild(row);
+      }
+    }
+
+    async function openJob(id) {
+      jobSelectedId = id;
+      $("jobForm").hidden = true;
+      $("jobView").hidden = false;
+      $("jobBackBtn").hidden = false;
+      stopJobPoll();
+      await pollJob();
+      jobPollTimer = setInterval(async () => {
+        await pollJob();
+        // stop polling on your own once the job reaches a terminal state
+        const terminal = ["complete", "failed", "error", "cancelled"];
+        if (jobLastSnapshot && terminal.includes(jobLastSnapshot.status)) stopJobPoll();
+      }, 2000);
+    }
+
+    function backToJobForm() {
+      jobSelectedId = null;
+      jobLastSnapshot = null;
+      stopJobPoll();
+      $("jobView").hidden = true;
+      $("jobForm").hidden = false;
+      $("jobBackBtn").hidden = true;
+      $("jobCancelBtn").hidden = true;
+      $("jobStatusPill").hidden = true;
+      loadJobTab();
+    }
+
+    let jobLastSnapshot = null;
+
+    async function pollJob() {
+      if (!jobSelectedId) return;
+      try {
+        const r = await fetch(orchHost() + "/jobs/" + jobSelectedId);
+        if (!r.ok) { if (r.status === 404) backToJobForm(); return; }
+        const snap = await r.json();
+        jobLastSnapshot = snap;
+        renderJobSnapshot(snap);
+      } catch (err) { /* transient; next tick retries */ }
+    }
+
+    function renderJobSnapshot(s) {
+      const pill = $("jobStatusPill");
+      pill.hidden = false;
+      pill.className = jobStatusPillClass(s.status);
+      pill.textContent = s.status;
+      $("jobCancelBtn").hidden = !(s.status === "running" || s.status === "validating");
+      $("jobViewTitle").textContent = s.title;
+      $("jobViewMeta").textContent =
+        `${s.id} · model: ${s.model || "?"} · turns: ${s.turns} · ${s.created_at}` +
+        (s.error ? ` · error: ${s.error}` : "");
+
+      // live progress: current stage/sub-stage + items-checked bar
+      const running = s.status === "running" || s.status === "validating";
+      const cur = $("jobCurrent");
+      if (s.status === "validating") {
+        cur.hidden = false;
+        cur.textContent = "final validation: re-running every check and test";
+      } else if (running && s.current) {
+        cur.hidden = false;
+        cur.textContent = `working on: ${s.current.stage} › ${s.current.item}`;
+      } else { cur.hidden = true; }
+      const bar = $("jobBar");
+      bar.hidden = !(s.items_total > 0);
+      $("jobBarFill").style.width = s.items_total ? Math.round(100 * s.items_done / s.items_total) + "%" : "0%";
+      $("jobProgressText").textContent = `${s.items_done}/${s.items_total} items checked off`;
+
+      // checklist: stages with sub-stage items, status + last check output
+      const stagesEl = $("jobStages"); stagesEl.innerHTML = "";
+      for (const st of s.stages) {
+        const box = document.createElement("div");
+        box.className = "job-stage";
+        const head = document.createElement("div");
+        head.className = "job-stage-head";
+        const stPill = document.createElement("span");
+        stPill.className = jobStatusPillClass(st.status === "in_progress" ? "running" : st.status === "complete" ? "complete" : st.status);
+        stPill.textContent = st.status.replace("_", " ");
+        const stTitle = document.createElement("span");
+        stTitle.className = "job-stage-title";
+        stTitle.textContent = st.title;
+        head.appendChild(stPill); head.appendChild(stTitle);
+        box.appendChild(head);
+        for (const it of st.items) {
+          const row = document.createElement("div");
+          row.className = "job-item";
+          const mark = document.createElement("span");
+          mark.className = "job-item-mark " + (it.status === "checked" ? "ok" : it.status === "failed" ? "bad" : "");
+          mark.textContent = it.status === "checked" ? "☑" : it.status === "failed" ? "✕" : "☐";
+          const body = document.createElement("div");
+          body.className = "job-item-body";
+          const t = document.createElement("div");
+          t.textContent = it.title;
+          body.appendChild(t);
+          if (it.check) {
+            const c = document.createElement("div");
+            c.className = "job-item-cmd";
+            c.textContent = "$ " + it.check;
+            body.appendChild(c);
+          }
+          if (it.last_check) {
+            const lc = document.createElement("div");
+            lc.className = "orchnote";
+            lc.textContent = `last check: exit ${it.last_check.exit_code} at ${it.last_check.at}`;
+            body.appendChild(lc);
+            if (it.last_check.output) {
+              const out = document.createElement("pre");
+              out.className = "job-output";
+              out.textContent = it.last_check.output;
+              body.appendChild(out);
+            }
+          }
+          row.appendChild(mark); row.appendChild(body);
+          box.appendChild(row);
+        }
+        stagesEl.appendChild(box);
+      }
+
+      // validation report (final, independent re-run of everything)
+      const vsec = $("jobValidationSection");
+      if (s.validation) {
+        vsec.hidden = false;
+        const v = s.validation;
+        const body = $("jobValidationBody"); body.innerHTML = "";
+        const verdict = document.createElement("div");
+        verdict.className = jobStatusPillClass(v.passed ? "complete" : "failed");
+        verdict.textContent = v.passed ? "complete — every check and test passed" : "failed validation";
+        body.appendChild(verdict);
+        if (v.flagged && v.flagged.length) {
+          const fl = document.createElement("div");
+          fl.className = "orchnote bad";
+          fl.style.marginTop = "8px";
+          fl.textContent = "flagged: the agent marked these ready but they failed verification: " + v.flagged.join(", ");
+          body.appendChild(fl);
+        }
+        for (const e of v.items || []) {
+          const row = document.createElement("div");
+          row.className = "job-item";
+          const mark = document.createElement("span");
+          mark.className = "job-item-mark " + (e.passed ? "ok" : "bad");
+          mark.textContent = e.passed ? "☑" : "✕";
+          const eb = document.createElement("div");
+          eb.className = "job-item-body";
+          const t = document.createElement("div");
+          t.textContent = `${e.stage} › ${e.title}` + (e.claimed && !e.passed ? "  (flagged)" : "");
+          const c = document.createElement("div");
+          c.className = "job-item-cmd";
+          c.textContent = "$ " + e.command + "  → exit " + e.exit_code;
+          eb.appendChild(t); eb.appendChild(c);
+          if (e.output) {
+            const out = document.createElement("pre");
+            out.className = "job-output";
+            out.textContent = e.output;
+            eb.appendChild(out);
+          }
+          row.appendChild(mark); row.appendChild(eb);
+          body.appendChild(row);
+        }
+        for (const t of v.tests || []) {
+          const row = document.createElement("div");
+          row.className = "job-item";
+          const mark = document.createElement("span");
+          mark.className = "job-item-mark " + (t.passed ? "ok" : "bad");
+          mark.textContent = t.passed ? "☑" : "✕";
+          const eb = document.createElement("div");
+          eb.className = "job-item-body";
+          const tt = document.createElement("div");
+          tt.textContent = "test: " + t.name;
+          const c = document.createElement("div");
+          c.className = "job-item-cmd";
+          c.textContent = "$ " + t.command + "  → exit " + t.exit_code;
+          eb.appendChild(tt); eb.appendChild(c);
+          if (t.output) {
+            const out = document.createElement("pre");
+            out.className = "job-output";
+            out.textContent = t.output;
+            eb.appendChild(out);
+          }
+          row.appendChild(mark); row.appendChild(eb);
+          body.appendChild(row);
+        }
+      } else { vsec.hidden = true; }
+
+      // files produced
+      const filesEl = $("jobFiles"); filesEl.innerHTML = "";
+      if (!s.files.length) {
+        filesEl.innerHTML = '<span class="orchnote">none yet</span>';
+      } else {
+        for (const f of s.files) {
+          const d = document.createElement("div");
+          d.className = "job-file";
+          d.textContent = f;
+          filesEl.appendChild(d);
+        }
+      }
+
+      // activity feed
+      const evEl = $("jobEvents"); evEl.innerHTML = "";
+      for (const e of (s.events || []).slice(-60)) {
+        const d = document.createElement("div");
+        d.className = "job-event job-event-" + e.kind;
+        d.textContent = `${e.at}  ${e.text}`;
+        evEl.appendChild(d);
+      }
+      evEl.scrollTop = evEl.scrollHeight;
+    }
+
+    async function submitJob() {
+      const note = $("jobFormNote");
+      note.classList.remove("bad");
+      const description = $("jobDesc").value.trim();
+      const checklist = $("jobChecklist").value.trim();
+      const system_prompt = $("jobSysPrompt").value.trim();
+      if (!description) { note.textContent = "describe what to build first"; note.classList.add("bad"); return; }
+      if (!checklist) { note.textContent = "the build checklist is the validation list — add at least one stage and item"; note.classList.add("bad"); return; }
+      $("jobSubmitBtn").disabled = true;
+      try {
+        const r = await fetch(orchHost() + "/jobs", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description, checklist, system_prompt }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          note.textContent = data.error || ("HTTP " + r.status);
+          note.classList.add("bad");
+          return;
+        }
+        note.textContent = "";
+        openJob(data.job_id);
+        loadJobTab();
+      } catch (err) {
+        note.textContent = "orchestrator offline";
+        note.classList.add("bad");
+      } finally {
+        $("jobSubmitBtn").disabled = false;
+      }
+    }
+
+    $("jobSubmitBtn").addEventListener("click", submitJob);
+    $("jobBackBtn").addEventListener("click", backToJobForm);
+    $("jobCancelBtn").addEventListener("click", async () => {
+      if (!jobSelectedId) return;
+      await fetch(orchHost() + "/jobs/" + jobSelectedId + "/cancel", { method: "POST" });
+      pollJob();
+    });
+
+    /* restore */
+    $("sysPrompt").value = store.get("sysPrompt", "");
+    $("whisperInput").value = store.get("whisperHost", $("whisperInput").value);
+    $("orchInput").value = store.get("orchHost", $("orchInput").value);
+    $("crawlerInput").value = store.get("crawlerHost", $("crawlerInput").value);
+    $("autostop").checked = store.get("autostop", "1") === "1";
+    $("autorefresh").checked = store.get("autorefresh", "0") === "1";
+    $("ctxSelect").value = store.get("ctxSelect", "32768");
+    $("warnTok").value = store.get("warnTok", "5000");
+    $("dumpTok").value = store.get("dumpTok", "6500");
+    $("useKB").checked = store.get("useKB", "1") === "1";
+    $("kbK").value = store.get("kbK", "4");
+    $("userEmailLabel").textContent = "testuser@testemail.com";
+
+    agenticEnabled = store.get("agenticEnabled", "0") === "1";
+    crawlerToolEnabled = store.get("toolCrawlerEnabled", "0") === "1";
+    localAgentToolEnabled = store.get("toolLocalAgentEnabled", "0") === "1";
+    $("agenticEnable").checked = agenticEnabled;
+    $("crawlerEnableToggle").checked = crawlerToolEnabled;
+    $("localAgentEnableToggle").checked = localAgentToolEnabled;
+    $("sidebarTools").hidden = !agenticEnabled;
+
+    loadModels();
+    fetchState();
+    fetchDocs();
+    refreshThreadList();
+    updateMonitor();
+  </script>
+</body>
+
+</html>

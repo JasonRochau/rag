@@ -1,0 +1,139 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# --- Virtual environments ---
+.venv/
+.venv-docling/
+.venv-xberg/
+
+# --- Logs (orchestrator.log, ingestion.log, orch_debug.log, etc.) ---
+*.log
+
+# --- Runtime state (auto-recreated by orchestrator.py / job_runner.py) ---
+state.json
+threads/
+jobs/
+sessions/
+local_agent_dirs.json
+docupload-*/
+
+# --- Local tool config ---
+.claude/
+
+# --- DOCs ---
+docs/
+
+
+# --- Experiment / validation outputs ---
+artifacts/
+
+# --- Generated pipeline output under docs/ (rebuildable from sources) ---
+docs/.index/
+docs/.index-qwen3-4b-shadow/
+docs/newly_formatted_docs_review/processed/
+docs/newly_formatted_docs_review/reports/
+
+# --- Large data (uncomment if you don't want source docs in git) ---
+# docs/newly_formatted_docs_review/sources/
+# docs/azure/
+# docs/networking/
+docs/azure/Allow users to reset their password with Microsoft Entra self-service password reset/3-auth-methods.png
+docs/azure/Allow users to reset their password with Microsoft Entra self-service password reset/3-customization-settings.png
+docs/azure/Allow users to reset their password with Microsoft Entra self-service password reset/3-enable-sspr.png
+docs/azure/Allow users to reset their password with Microsoft Entra self-service password reset/3-notification-settings.png
+docs/azure/Allow users to reset their password with Microsoft Entra self-service password reset/3-registration-options.png
+docs/azure/Allow users to reset their password with Microsoft Entra self-service password reset/4-choose-sspr-group.png
+docs/azure/Allow users to reset their password with Microsoft Entra self-service password reset/4-create-group.png
+docs/azure/Allow users to reset their password with Microsoft Entra self-service password reset/4-register-email.png
+docs/azure/Allow users to reset their password with Microsoft Entra self-service password reset/4-start-password-reset.png
+docs/azure/Allow users to reset their password with Microsoft Entra self-service password reset/5-custom-login-page.png
+docs/azure/Allow users to reset their password with Microsoft Entra self-service password reset/5-customize-ui.png
+docs/azure/Allow users to reset their password with Microsoft Entra self-service password reset/5-forgot-password-branding.png
+docs/azure/Azure Policy initiatives/0ce5db8cf98b3c84.png
+docs/azure/Azure Policy initiatives/5a80d7fae0567362.png
+docs/azure/Azure Policy initiatives/6d2346241e1c38fb.png
+docs/azure/Azure Policy initiatives/120ace70922b31fd.png
+docs/azure/Azure Policy initiatives/315cc8032ef5e1c1.png
+docs/azure/Azure Policy initiatives/4854a4742d6d5840.png
+docs/azure/Azure Policy initiatives/ea04a47c048bce20.png
+docs/azure/Azure Policy initiatives/f9c905de303aea3d.png
+docs/azure/Configure Azure App Service/9c28928afab6b952.png
+docs/azure/Configure Azure App Service/18a7c1b3eaed3361.png
+docs/azure/Configure Azure App Service/46f79bc4aaab9748.png
+docs/azure/Configure Azure App Service/0065c6593a05be56.png
+docs/azure/Configure Azure App Service/70ba869fcdc63091.png
+docs/azure/Configure Azure App Service/71ade797b9100a17.png
+docs/azure/Configure Azure App Service/a21872d6a26dad7b.png
+docs/azure/Configure Azure App Service/bae9d30fea2a89cb.png
+docs/azure/Configure Azure App Service/c97c035dc7b638cf.png
+docs/azure/Configure Azure App Service plans/f0b1f3cf7df84e26.gif
+docs/azure/Configure Azure Blob Storage/0a6d2b2da61d2e1f.png
+docs/azure/Configure Azure Blob Storage/6f912ccd11162cda.png
+docs/azure/Configure Azure Blob Storage/70ba869fcdc63091.png
+docs/azure/Configure Azure Blob Storage/a2f41a155a8a1873.png
+docs/azure/Configure Azure Blob Storage/a9cf15c554880389.png
+docs/azure/Configure Azure Blob Storage/cc36f0467e07c2e5.png
+docs/azure/Configure Azure Blob Storage/ecb6e8806d45d6e0.png
+docs/azure/Configure Azure Blob Storage/f416768c3c8c95b6.png
+docs/azure/Configure Azure Container Instances/70ba869fcdc63091.png
+docs/azure/Configure Azure Container Instances/1017d5b9bd9fcd32.png
+docs/azure/Configure Azure Container Instances/a4c2565c0b4fa3f1.png
+docs/azure/Configure Azure Container Instances/beb3aec294c27835.png
+docs/azure/Configure Azure Files/2a684e22eee0ab54.png
+docs/azure/Configure Azure Files/71dd0b549665b32b.png
+docs/azure/Configure Azure Files/127f8ee3242fef77.png
+docs/azure/Configure Azure Files/d70251ea5fd7e77c.png
+docs/azure/Configure Azure Files/def40cc72d24be2b.png
+docs/azure/Configure Azure Files/f4386fa3aaf5ac98.png
+docs/azure/Configure Azure Storage security/15a7c09de1ab514a.png
+docs/azure/Configure Azure Storage security/70ba869fcdc63091.png
+docs/azure/Configure Azure Storage security/518bea9fbfc7ada2.png
+docs/azure/Configure Azure Storage security/ae979f41db0ce29d.png
+docs/azure/Configure Azure Storage security/aebae575b55ee6c4.png
+docs/azure/Configure Azure Storage security/cc05668c7b778134.png
+docs/azure/Configure Azure Virtual Network peering/70ba869fcdc63091.png
+docs/azure/Configure Azure Virtual Network peering/146bb9694147f196.png
+docs/azure/Configure Azure Virtual Network peering/260c0887d779e24a.png
+docs/azure/Configure Azure Virtual Network peering/b28b6a870a33b01c.png
+docs/azure/Configure Azure Virtual Network peering/d3403b3b001e306a.png
+docs/azure/Configure network security groups/0fd96227053fd66e.png
+docs/azure/Configure network security groups/6e55e58162df6799.png
+docs/azure/Configure network security groups/6f6ab2ebf50eaf1f.png
+docs/azure/Configure network security groups/9f9ecf1a7fdeba23.png
+docs/azure/Configure network security groups/70ba869fcdc63091.png
+docs/azure/Configure network security groups/859ac3d2e728cf23.png
+docs/azure/Configure network security groups/ad160c8f798b8cd1.png
+docs/azure/Configure network security groups/c9417decfd0c293d.png
+docs/azure/Configure network security groups/fb5e760c5ba68542.png
+docs/azure/Configure storage accounts/1fbae1b4370864f9.png
+docs/azure/Configure storage accounts/697c6facd46b448b.png
+docs/azure/Configure storage accounts/8a5ec487aced6d0d.png
+docs/azure/Configure storage accounts/923c34c55c28265e.png
+docs/azure/Configure storage accounts/80662de98cbcf8ee.png
+docs/azure/Configure storage accounts/964875a818a225bc.png
+docs/azure/Configure storage accounts/d71506844ebe24f1.png
+docs/azure/Configure storage accounts/efa7071fbf29ce01.png
+docs/azure/Configure virtual machine availability/259c7adea2cb6112.png
+docs/azure/Configure virtual machine availability/451de8e1392da46b.png
+docs/azure/Configure virtual machine availability/431224932a513c2f.png
+docs/azure/Configure virtual machine availability/bb22b45297e659bb.png
+docs/azure/Configure virtual machine availability/c22ca30f40818562.png
+docs/azure/Configure virtual machine availability/cb352e0f27eec6c0.png
+docs/azure/Configure virtual machine availability/e3a396d7e68e9039.png
+docs/azure/Configure virtual networks/3b8165b6dbcc77df.png
+docs/azure/Configure virtual networks/50d57a6cbcebcc26.png
+docs/azure/Configure virtual networks/70ba869fcdc63091.png
+docs/azure/Configure virtual networks/75408c82874d7d01.png
+docs/azure/Create, configure, and manage identities/0c608cd4140b0a4f.png
+docs/azure/Create, configure, and manage identities/61f7b77f0857bca8.png
+docs/azure/Create, configure, and manage identities/90a5b54abf9f1077.png
+docs/azure/Create, configure, and manage identities/96d8acaae049920f.png
+docs/azure/Create, configure, and manage identities/829e90d85f351e5d.png
+docs/azure/Create, configure, and manage identities/864cb9554daddb65.png
+docs/azure/Create, configure, and manage identities/98376dd78f6f97e3.png
+docs/azure/Create, configure, and manage identities/520418a0d7496ce9.png
+docs/azure/Create, configure, and manage identities/ba0c021555ba0a3a.png
+docs/azure/Configure virtual networks/d284348c14a64d18.png
